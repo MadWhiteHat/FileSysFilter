@@ -44,12 +44,13 @@ int main() {
       choice.erase(0, 4);
       try {
         std::wstringstream input(std::move(choice));
+        std::wstring __fileName;
         std::wstring __procName;
-        std::wstring __levelStr;
+        std::wstring __accessMask;
+        input >> __fileName;
         input >> __procName;
-        input >> __levelStr;
-        int32_t __level = std::stoi(__levelStr);
-        __list.AddRule(__procName, __level);
+        input >> __accessMask;
+        __list.AddRule(__fileName, __procName, __accessMask);
       }
       catch (std::exception& ex) { std::cout << ex.what() << std::endl; }
     }

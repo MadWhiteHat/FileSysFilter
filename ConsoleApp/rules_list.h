@@ -1,15 +1,13 @@
 #ifndef _RULES_LIST_H
 #define _RULES_LIST_H
 
-
 #include <iostream>
 #include <list>
 #include <windows.h>
 
-#include "../registry_filter.h"
+#include "../file_sys_filter.h"
 
-#define OUTPUT_LEVEL '\t'
-#define SUBKEY_NAME L"SOFTWARE\\"##_DRIVER_NAME
+#define CONF_FILE_PATH L"C:\\Windows\\" _CONF_FILE_PATH
 
 class MyRuleList {
 public:
@@ -17,19 +15,23 @@ public:
   void LoadRules();
   void PrintRules();
   void DeleteRule(size_t __idx);
-  void AddRule(std::wstring& __procName, int32_t __level);
+  void AddRule(std::wstring& __fileName, std::wstring& __procName,
+    std::wstring& __accessMaskStr);
 private:
-  void _RenewKeyValue();
-  void _PrintError(std::string&& __funcName, DWORD __errCode);
-
-  struct MyRuleNode {
+  void _RenewRules();
+  static void _PrintError(std::string&& __funcName, DWORD __errCode);
+  
+  struct MyAce {
     std::wstring _procName;
-    int32_t _level = 0;
+    int32_t _accessmask = 0;
   };
 
-  LPCWSTR SUBKEY = SUBKEY_NAME;
-  LPCWSTR KEY_NAME = L"rule";
-  std::list<MyRuleNode> _rules;
+  struct MyAcl {
+    std::wstring _fileName;
+    std::list<MyAce> _aceList;
+  };
+
+  std::list<MyAcl> _aclList;
 };
 
 #endif // !_RULES_LIST_H

@@ -5,7 +5,7 @@ VisualStudioVersion = 16.0.33328.57
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConsoleApp", "ConsoleApp\ConsoleApp.vcxproj", "{410D98AD-ED2C-4D3C-9487-59AA74CBB517}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RegistryDriver", "RegistryDriver\RegistryDriver.vcxproj", "{D74DF6F6-A7C6-4C27-9061-1F8E6F8871F7}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FileSysDriver", "FileSysDriver\FileSysDriver.vcxproj", "{D74DF6F6-A7C6-4C27-9061-1F8E6F8871F7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -32,7 +32,7 @@
     <ClInclude Include="driver_control.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\registry_filter.h">
+    <ClInclude Include="..\file_sys_filter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

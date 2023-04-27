@@ -1,5 +1,8 @@
 #include "driver_control.h"
 
+#include <iostream>
+#include <windows.h>
+
 void
 DriverControl::
 Start() {
@@ -53,12 +56,12 @@ Stop() {
 
 void
 DriverControl::
-EnableCreateThreadNotify() { this->_SendIOCTLCode(IOCTL_SET_CREATE_THREAD); }
+EnableCreateThreadNotify() { this->_SendIOCTLCode(IOCTL_SET_LOAD_IMAGE); }
 
 void
 DriverControl::
 DisableCreateThreadNotify() {
-  this->_SendIOCTLCode(IOCTL_REMOVE_CREATE_THREAD);
+  this->_SendIOCTLCode(IOCTL_REMOVE_LOAD_IMAGE);
 }
 
 void
@@ -87,7 +90,7 @@ DriverControl::
 _SendIOCTLCode(DWORD __ioctlCode) {
   HANDLE __hDriver = NULL;
   BOOL __res = FALSE;
-  DRIVER_IOCTL_OUTPUT __output = { 0 };
+  DRIVER_IO __output = { 0 };
   DWORD __bytesRet = 0;
 
   __hDriver = CreateFileW(
@@ -118,7 +121,7 @@ _SendIOCTLCode(DWORD __ioctlCode) {
     CloseHandle(__hDriver);
     return;
   }
-  std::cout << "Driver returns: " << std::hex << __output._retVal << std::endl;
+  std::cout << "Driver returns: " << std::hex << __output._resVal << std::endl;
   CloseHandle(__hDriver);
 }
 

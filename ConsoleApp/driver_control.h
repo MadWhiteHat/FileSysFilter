@@ -4,7 +4,9 @@
 #include <iostream>
 #include <windows.h>
 
-#include "../registry_filter.h"
+#include "../file_sys_filter.h"
+
+#define KERNEL_MODE_DRIVER_NAME L"\\\\.\\" DRIVER_NAME
 
 class DriverControl {
 public:
