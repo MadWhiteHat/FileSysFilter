@@ -1,50 +1,79 @@
 #ifndef _DRIVER_H
 #define _DRIVER_H
 
-#include <ntifs.h>
-#include <ntstrsafe.h>
+#include <fltKernel.h>
 #include <wdm.h>
+#include <dontuse.h>
+#include <suppress.h>
 
-// Security parameters for driver full access for SY and full access for
-// local group Admintistrators
-#define DRIVER_SDDL_STRING L"D:P(A;;GA;;;SY)(A;;GA;;BA)"
-#define DRIVER_SCM_NAME L"\\Device\\" DRIVER_NAME
-#define USER_MODE_DRIVER_NAME L"\\??\\" DRIVER_NAME
+#include "../file_sys_filter.h"
 
-#define DRIVER_ALTITUDE L"380000"
-#define LOG_FILE_NAME L"\\SystemRoot\MBKS\\ImageNotify.log"
+#pragma prefast( \
+  disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, \
+  "Not valid for kernel mode drivers" \
+)
 
+#define LOG_FILE_NAME L"\\SystemRoot\\MBKS\\ImageNotify.log"
 #define CONSOLE_PROGRAM_NAME L"ConsoleApp.exe"
-#define DRIVER_NAME_WITH_EXT DRIVER_NAME L".sys"
 
-DRIVER_INITIALIZE DriverEntry;
-DRIVER_UNLOAD DriverUnload;
-
-_Dispatch_type_(IRP_MJ_CREATE)          DRIVER_DISPATCH DriverCreate;
-_Dispatch_type_(IRP_MJ_CLOSE)           DRIVER_DISPATCH DriverClose;
-_Dispatch_type_(IRP_MJ_CLEANUP)         DRIVER_DISPATCH DriverCleanup;
-_Dispatch_type_(IRP_MJ_DEVICE_CONTROL)  DRIVER_DISPATCH DriverControl;
-
-NTSTATUS RegistryCallback(
-  __in PVOID __callbackContext,
-  __in_opt PVOID __arg1,
-  __in_opt PVOID __arg2
+NTSTATUS
+DriverEntry(
+  _In_ PDRIVER_OBJECT __driverObj,
+  _In_ PUNICODE_STRING __registryPath
 );
 
-typedef NTSTATUS(*QUERY_INFO_PROCESS) (
-    __in HANDLE __procHandle,
-    __in PROCESSINFOCLASS __procInfoClass,
-    __out_bcount(__procInfoLen) PVOID __procInfo,
-    __in ULONG __procInfoLen,
-    __out_opt PULONG __retLen
-  );
-QUERY_INFO_PROCESS ZwQueryInformationProcess;
 
-int SetLoadImageNotify();
-int RemoveLoadImageNotify();
-PLOAD_IMAGE_NOTIFY_ROUTINE LoadImageNotify;
+NTSTATUS
+DriverUnload(
+  _In_ FLT_FILTER_UNLOAD_FLAGS __flags
+);
 
-void _PrintDebugError(const char* __funcName, NTSTATUS __errCode);
-void _PrintDebugSuccess(const char* __funcName);
+NTSTATUS
+DriverInstanceQueryTeardown(
+  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
+  _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS __flags
+);
+
+FLT_PREOP_CALLBACK_STATUS
+FltPreDriverControl(
+  _Inout_ PFLT_CALLBACK_DATA __data,
+  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
+  _Out_ PVOID* __completionContext
+);
+
+int
+SetLoadImageNotify();
+int
+RemoveLoadImageNotify();
+
+void
+LoadImageNotify(
+  _In_opt_ PUNICODE_STRING FullImageName,
+  _In_ HANDLE ProcessId,
+  _In_ PIMAGE_INFO ImageInfo
+);
+
+void
+PrintDebugError(const char* __funcName, NTSTATUS __errCode);
+void
+PrintDebugSuccess(const char* __funcName);
+void
+_PrintDebugStatus(const char* __fmt, ...);
+
+#ifdef ALLOC_PRAGMA
+
+#pragma alloc_text(INIT, DriverEntry)
+#pragma alloc_text(PAGE, DriverUnload)
+#pragma alloc_text(PAGE, DriverInstanceQueryTeardown)
+#pragma alloc_text(PAGE, FltPreDriverControl)
+#pragma alloc_text(PAGE, SetLoadImageNotify)
+#pragma alloc_text(PAGE, RemoveLoadImageNotify)
+#pragma alloc_text(PAGE, LoadImageNotify)
+#pragma alloc_text(PAGE, PrintDebugError)
+#pragma alloc_text(PAGE, PrintDebugSuccess)
+#pragma alloc_text(PAGE, _PrintDebugStatus)
+
+#endif // ALLOC_PRAGMA
+
 
 #endif // !_DRIVER_H

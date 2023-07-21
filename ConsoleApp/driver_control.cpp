@@ -1,7 +1,9 @@
 #include "driver_control.h"
 
 #include <iostream>
+#include <iomanip>
 #include <windows.h>
+#include <newdev.h>
 
 void
 DriverControl::
@@ -56,6 +58,45 @@ Stop() {
 
 void
 DriverControl::
+Install() {
+  LPCWSTR __path = L"..\\x64\\Release\\FileSysDriver\\FileSysDriver.inf";
+  DWORD __length = 0;
+  WCHAR* __fullPath = nullptr;
+  BOOL __res = FALSE;
+
+  __length = GetFullPathNameW(__path, __length, __fullPath, nullptr);
+  if (__length == 0) {
+    _PrintError("GetFullPathNameW", GetLastError());
+    return;
+  }
+  __fullPath = new(std::nothrow) WCHAR[__length + 1];
+  if (__fullPath == nullptr) {
+    _PrintError("Memory allocation", 0);
+    return;
+  }
+  __length = GetFullPathNameW(__path, __length, __fullPath, nullptr);
+  if (__length == 0) {
+    _PrintError("GetFullPathNameW", GetLastError());
+    delete[] __fullPath;
+    return;
+  }
+
+  __res = DiInstallDriverW(
+    nullptr,
+    __fullPath,
+    DIIRFLAG_FORCE_INF,
+    nullptr
+  );
+
+  if (__res == FALSE) {
+    _PrintError("DiInstallDriverW", GetLastError());
+  } else { std::cout << "Driver was installed sucessfully" << std::endl; }
+
+  delete[] __fullPath;
+  return;
+}
+void
+DriverControl::
 EnableCreateThreadNotify() { this->_SendIOCTLCode(IOCTL_SET_LOAD_IMAGE); }
 
 void
@@ -78,8 +119,8 @@ DriverControl::_GetServiceHandle() {
     __hService = OpenServiceW(__hSCM, DRIVER_NAME, SERVICE_ALL_ACCESS);
     if (__hService == NULL) {
       this->_PrintError("OpenServiceW", GetLastError());
-      CloseServiceHandle(__hSCM);
     }
+    CloseServiceHandle(__hSCM);
   } else { _PrintError("OpenSCManagerW", GetLastError()); }
 
   return __hService;
@@ -164,6 +205,7 @@ inline
 void
 DriverControl::
 _PrintError(std::string&& __funcName, DWORD __errCode) {
-  std::cout << __funcName << " failed with: "
+  std::cout << __funcName << " failed with: 0x";
+  std::cout << std::setw(8) << std::setfill('0') << std::right
     << std::hex << __errCode << std::endl;
 }

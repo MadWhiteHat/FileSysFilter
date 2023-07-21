@@ -3,85 +3,101 @@
 ;
 
 [Version]
-Signature="$WINDOWS NT$"
-Class=Sample ; TODO: edit Class
-ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5171} ; TODO: edit ClassGuid
-Provider=%ManufacturerName%
-CatalogFile=FileSysDriver.cat
-DriverVer= ; TODO: set DriverVer in stampinf property pages
-PnpLockDown=1
+Signature = "$Windows NT$"
+Class = "ActivityMonitor"
+ClassGuid = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}
+Provider = %ManufacturerName%
+DriverVer = 4/28/2023,1.0.0.0
+CatalogFile = FileSysDriver.cat
+PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
-FileSysDriver_Device_CoInstaller_CopyFiles = 11
+FileSysDriver.DriverFiles = 12
 
-; ================= Class section =====================
-
-[ClassInstall32]
-Addreg=SampleClassReg
-
-[SampleClassReg]
-HKR,,,0,%ClassName%
-HKR,,Icon,,-5
-
-[SourceDisksNames]
-1 = %DiskName%,,,""
-
-[SourceDisksFiles]
-FileSysDriver.sys  = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
 ; Install Section
 ;*****************************************
 
-[Manufacturer]
-%ManufacturerName%=Standard,NT$ARCH$
+[DefaultInstall.NT$ARCH$]
+OptionDesc = %ServiceDesc%
+CopyFiles = FileSysDriver.DriverFiles
 
-[Standard.NT$ARCH$]
-%FileSysDriver.DeviceDesc%=FileSysDriver_Device, Root\FileSysDriver ; TODO: edit hw-id
+;*****************************************
+; Uninstall Section
+;*****************************************
 
-[FileSysDriver_Device.NT]
-CopyFiles=Drivers_Dir
+[DefaultUninstall.NT$ARCH$]
+DelFiles = FileSysDriver.DriverFiles
+DelReg = FileSysDriver.DelRegistry
+LegacyUninstall = 1
 
-[Drivers_Dir]
-FileSysDriver.sys
+[DefaultUninstall.NT$ARCH$.Services]
+DelService = %ServiceName%, 0x200 ; Ensure service is stopped before deleting
 
-;-------------- Service installation
-[FileSysDriver_Device.NT.Services]
-AddService = FileSysDriver,%SPSVCINST_ASSOCSERVICE%, FileSysDriver_Service_Inst
+[DefaultInstall.NT$ARCH$.Services]
+AddService = %ServiceName%,,FileSysDriver.Service
 
-; -------------- FileSysDriver driver install sections
-[FileSysDriver_Service_Inst]
-DisplayName    = %FileSysDriver.SVCDESC%
-ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
-StartType      = 3               ; SERVICE_DEMAND_START
-ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\FileSysDriver.sys
+;*****************************************
+; Service Section
+;*****************************************
 
-;
-;--- FileSysDriver_Device Coinstaller installation ------
-;
+[FileSysDriver.Service]
+DisplayName = %ServiceName%
+Description = %ServiceDesc%
+ServiceBinary = %12%\%DriverName%.sys
+Dependencies = "FltMgr"
+ServiceType = 2 ; SERVICE_FILE_SYSTEM_DRIVER
+StartType = 3 ; SERVICE_DEMAND_START
+ErrorControl = 1 ; SERVICE_ERROR_NORMAL
+LoadOrderGroup = "FSFilter Activity Monitor"
+AddReg = FileSysDriver.AddRegistry
 
-[FileSysDriver_Device.NT.CoInstallers]
-AddReg=FileSysDriver_Device_CoInstaller_AddReg
-CopyFiles=FileSysDriver_Device_CoInstaller_CopyFiles
+;*****************************************
+; Registry Modification
+;*****************************************
 
-[FileSysDriver_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+[FileSysDriver.AddRegistry]
+HKR,,"SupportedFeatures",0x00010001,0x3
+HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
+HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,%Instance1.Altitude%
+HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
 
-[FileSysDriver_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+[FileSysDriver.DelRegistry]
+HKR,,"SupportedFeatures"
+HKR,"Instances","DefaultInstance"
+HKR,"Instances\"%Instance1.Name%,"Altitude"
+HKR,"Instances\"%Instance1.Name%,"Flags"
 
-[FileSysDriver_Device.NT.Wdf]
-KmdfService =  FileSysDriver, FileSysDriver_wdfsect
-[FileSysDriver_wdfsect]
-KmdfLibraryVersion = $KMDFVERSION$
+;*****************************************
+; Copy Files
+;*****************************************
+
+[FileSysDriver.DriverFiles]
+%DriverName%.sys
+
+[SourceDisksFiles]
+FileSysDriver.sys = 1,,
+
+[SourceDisksNames]
+1 = %DiskId1%
+
+;*****************************************
+; String Section
+;*****************************************
 
 [Strings]
-SPSVCINST_ASSOCSERVICE= 0x00000002
-ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
-ClassName="Samples" ; TODO: edit ClassName
-DiskName = "FileSysDriver Installation Disk"
-FileSysDriver.DeviceDesc = "FileSysDriver Device"
-FileSysDriver.SVCDESC = "FileSysDriver Service"
+ManufacturerName = "<Mike Kozelkov>"
+ServiceDesc = "File system mini-filter driver"
+ServiceName = "FileSysDriver"
+DriverName = "FileSysDriver"
+DiskId1 = "FileSysDriver Device Installation Disk"
+
+;*****************************************
+; Instances Specific Information
+;*****************************************
+DefaultInstance = "Default File System Driver Instance"
+Instance1.Name = "File System Driver Instance"
+Instance1.Altitude = "389999"
+Instance1.Flags = 0x0 ; Suppress automatic attachments

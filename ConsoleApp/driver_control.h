@@ -12,6 +12,7 @@ class DriverControl {
 public:
   void Start();
   void Stop();
+  void Install();
   void EnableCreateThreadNotify();
   void DisableCreateThreadNotify();
   void Update();

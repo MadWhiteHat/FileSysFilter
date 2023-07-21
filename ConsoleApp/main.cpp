@@ -10,6 +10,21 @@
 
 #define OUTPUT_LEVEL '\t'
 
+inline void usage() {
+  std::cout << "Program for setting access rights" << std::endl;
+  std::cout << OUTPUT_LEVEL << "Valid parameters for execution:" << std::endl;
+  std::cout << OUTPUT_LEVEL << "print - display current permissions\n";
+  std::cout << OUTPUT_LEVEL << "del - delete a rule with a number N\n";
+  std::cout << OUTPUT_LEVEL << "add - add a new rule\n";
+  std::cout << OUTPUT_LEVEL << "install - install FileSysDriver\n";
+  std::cout << OUTPUT_LEVEL << "start - load FileSysDriver\n";
+  std::cout << OUTPUT_LEVEL << "stop - unload FileSysDriver\n";
+  std::cout << OUTPUT_LEVEL << "set - set notifier PsSetCreateThreadNotifyRoutine\n";
+  std::cout << OUTPUT_LEVEL << "rm - remove notifier PsSetCreateThreadNotifyRoutine\n";
+  std::cout << OUTPUT_LEVEL << "update - update driver rules\n";
+  std::cout << OUTPUT_LEVEL << "exit - close program\n";
+}
+
 int main() {
   
   MyRuleList __list;
@@ -17,18 +32,9 @@ int main() {
   __list.LoadRules();
 
   std::wstring choice;
-  std::cout << "Program for setting access rights" << std::endl;
-  std::cout << OUTPUT_LEVEL << "Valid parameters for execution:" << std::endl;
-  std::cout << OUTPUT_LEVEL << "print - display current permissions;\n";
-  std::cout << OUTPUT_LEVEL << "del   - delete a rule with a number N;\n";
-  std::cout << OUTPUT_LEVEL << "add   - add a new rule;\n";
-  std::cout << OUTPUT_LEVEL << "start - load RegFltDriver;\n";
-  std::cout << OUTPUT_LEVEL << "stop  - unload RegFltDriver;\n";
-  std::cout << OUTPUT_LEVEL << "set   - set notifier PsSetCreateThreadNotifyRoutine;\n";
-  std::cout << OUTPUT_LEVEL << "rm   - remove notifier PsSetCreateThreadNotifyRoutine;\n";
-  std::cout << OUTPUT_LEVEL << "update - update driver rules" << std::endl;
-  std::cout << OUTPUT_LEVEL << "exit  - close program\n";
   while (choice.compare(L"exit")) {
+    system("cls");
+    usage();
     std::cout << "Input command: ";
     std::getline(std::wcin, choice);
     if (!choice.compare(L"print")) { __list.PrintRules(); }
@@ -56,8 +62,11 @@ int main() {
     }
     else if (!choice.compare(L"start")) { __driver.Start(); }
     else if (!choice.compare(L"stop")) { __driver.Stop(); }
+    else if (!choice.compare(L"install")) { __driver.Install(); }
     else if (!choice.compare(L"set")) { __driver.EnableCreateThreadNotify(); }
     else if (!choice.compare(L"rm")) { __driver.DisableCreateThreadNotify(); }
     else if (!choice.compare(L"update")) { __driver.Update(); }
+    else { continue; }
+    system("pause");
   }
 }
