@@ -2,9 +2,11 @@
 #define _REGISTRY_FILTER_H
 
 #define DRIVER_NAME L"FileSysDriver"
-#define _CONF_FILE_PATH  DRIVER_NAME L"\\conf.xml"
 
-#define IOCTL_DO_UPDATE_RULES \
+#define DRIVER_CDO_NAME L"\\FileSystem\\Filters\\" DRIVER_NAME
+#define DRIVER_USERMODE_NAME L"\\??\\" DRIVER_NAME
+
+#define IOCTL_UPDATE_RULES \
 CTL_CODE ( \
   FILE_DEVICE_UNKNOWN, \
   (0x800 + 0), \

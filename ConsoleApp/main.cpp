@@ -17,10 +17,11 @@ inline void usage() {
   std::cout << OUTPUT_LEVEL << "del - delete a rule with a number N\n";
   std::cout << OUTPUT_LEVEL << "add - add a new rule\n";
   std::cout << OUTPUT_LEVEL << "install - install FileSysDriver\n";
+  std::cout << OUTPUT_LEVEL << "uninstall - uninstall FileSysDriver\n";
   std::cout << OUTPUT_LEVEL << "start - load FileSysDriver\n";
   std::cout << OUTPUT_LEVEL << "stop - unload FileSysDriver\n";
-  std::cout << OUTPUT_LEVEL << "set - set notifier PsSetCreateThreadNotifyRoutine\n";
-  std::cout << OUTPUT_LEVEL << "rm - remove notifier PsSetCreateThreadNotifyRoutine\n";
+  std::cout << OUTPUT_LEVEL << "set - set notifier PsSetLoadImageNotifyRoutine\n";
+  std::cout << OUTPUT_LEVEL << "rm - remove notifier PsSetLoadImageNotifyRoutine\n";
   std::cout << OUTPUT_LEVEL << "update - update driver rules\n";
   std::cout << OUTPUT_LEVEL << "exit - close program\n";
 }
@@ -63,8 +64,9 @@ int main() {
     else if (!choice.compare(L"start")) { __driver.Start(); }
     else if (!choice.compare(L"stop")) { __driver.Stop(); }
     else if (!choice.compare(L"install")) { __driver.Install(); }
-    else if (!choice.compare(L"set")) { __driver.EnableCreateThreadNotify(); }
-    else if (!choice.compare(L"rm")) { __driver.DisableCreateThreadNotify(); }
+    else if (!choice.compare(L"uninstall")) { __driver.Uninstall(); }
+    else if (!choice.compare(L"set")) { __driver.EnableLoadImageNotify(); }
+    else if (!choice.compare(L"rm")) { __driver.DisableLoadImageNotify(); }
     else if (!choice.compare(L"update")) { __driver.Update(); }
     else { continue; }
     system("pause");

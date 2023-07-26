@@ -1,70 +1,70 @@
-;
-; FileSysDriver.inf
-;
+;*****************************************
+; filesysDriver.inf
+;*****************************************
 
 [Version]
-Signature = "$Windows NT$"
-Class = "ActivityMonitor"
-ClassGuid = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}
-Provider = %ManufacturerName%
-DriverVer = 4/28/2023,1.0.0.0
-CatalogFile = FileSysDriver.cat
-PnpLockdown = 1
+Signature   = "$Windows NT$"
+Class       = "ActivityMonitor"                         ;This is determined by the work this filter driver does
+ClassGuid   = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}    ;This value is determined by the Load Order Group value
+Provider    = %ManufacturerName%
+DriverVer   = 4/28/2023,1.0.0.0
+CatalogFile = filesysDriver.cat
+PnpLockDown = 1
 
 [DestinationDirs]
-DefaultDestDir = 12
-FileSysDriver.DriverFiles = 12
-
+DefaultDestDir          = 12
+FileSysDriver.DriverFiles  = 12
 
 ;*****************************************
 ; Install Section
 ;*****************************************
 
 [DefaultInstall.NT$ARCH$]
-OptionDesc = %ServiceDesc%
-CopyFiles = FileSysDriver.DriverFiles
+OptionDesc          = %ServiceDescription%
+CopyFiles           = FileSysDriver.DriverFiles
+
+[DefaultInstall.NT$ARCH$.Services]
+AddService          = %ServiceName%,,FileSysDriver.Service
 
 ;*****************************************
 ; Uninstall Section
 ;*****************************************
 
 [DefaultUninstall.NT$ARCH$]
-DelFiles = FileSysDriver.DriverFiles
-DelReg = FileSysDriver.DelRegistry
-LegacyUninstall = 1
+DelFiles   = FileSysDriver.DriverFiles
+DelReg     = FileSysDriver.DelRegistry
 
 [DefaultUninstall.NT$ARCH$.Services]
-DelService = %ServiceName%, 0x200 ; Ensure service is stopped before deleting
-
-[DefaultInstall.NT$ARCH$.Services]
-AddService = %ServiceName%,,FileSysDriver.Service
+DelService = %ServiceName%,0x200      ;Ensure service is stopped before deleting
 
 ;*****************************************
 ; Service Section
 ;*****************************************
 
 [FileSysDriver.Service]
-DisplayName = %ServiceName%
-Description = %ServiceDesc%
-ServiceBinary = %12%\%DriverName%.sys
-Dependencies = "FltMgr"
-ServiceType = 2 ; SERVICE_FILE_SYSTEM_DRIVER
-StartType = 3 ; SERVICE_DEMAND_START
-ErrorControl = 1 ; SERVICE_ERROR_NORMAL
+DisplayName      = %ServiceName%
+Description      = %ServiceDescription%
+ServiceBinary    = %12%\%DriverName%.sys        ;%windir%\system32\drivers\
+Dependencies     = "FltMgr"
+ServiceType      = 2                            ;SERVICE_FILE_SYSTEM_DRIVER
+StartType        = 3                            ;SERVICE_DEMAND_START
+ErrorControl     = 1                            ;SERVICE_ERROR_NORMAL
 LoadOrderGroup = "FSFilter Activity Monitor"
-AddReg = FileSysDriver.AddRegistry
+AddReg           = FileSysDriver.AddRegistry
 
 ;*****************************************
 ; Registry Modification
 ;*****************************************
 
 [FileSysDriver.AddRegistry]
+HKR,,"DebugFlags",0x00010001 ,0x0
 HKR,,"SupportedFeatures",0x00010001,0x3
 HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
 HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,%Instance1.Altitude%
 HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
 
 [FileSysDriver.DelRegistry]
+HKR,,"DebugFlags"
 HKR,,"SupportedFeatures"
 HKR,"Instances","DefaultInstance"
 HKR,"Instances\"%Instance1.Name%,"Altitude"
@@ -78,26 +78,27 @@ HKR,"Instances\"%Instance1.Name%,"Flags"
 %DriverName%.sys
 
 [SourceDisksFiles]
-FileSysDriver.sys = 1,,
+filesysDriver.sys = 1,,
 
 [SourceDisksNames]
-1 = %DiskId1%
+1 = %DiskId1%,,,
 
 ;*****************************************
 ; String Section
 ;*****************************************
 
 [Strings]
-ManufacturerName = "<Mike Kozelkov>"
-ServiceDesc = "File system mini-filter driver"
-ServiceName = "FileSysDriver"
-DriverName = "FileSysDriver"
-DiskId1 = "FileSysDriver Device Installation Disk"
+ManufacturerName        = "<Mike Kozelkov>"
+ServiceDescription      = "FileSysDriver Mini-Filter Driver"
+ServiceName             = "FileSysDriver"
+DriverName              = "FileSysDriver"
+DiskId1                 = "FileSysDriver Device Installation Disk"
 
 ;*****************************************
 ; Instances Specific Information
 ;*****************************************
-DefaultInstance = "Default File System Driver Instance"
-Instance1.Name = "File System Driver Instance"
+
+DefaultInstance         = "FileSysDriver Instance"
+Instance1.Name          = "FileSysDriver Instance"
 Instance1.Altitude = "389999"
-Instance1.Flags = 0x0 ; Suppress automatic attachments
+Instance1.Flags = 0x1 ; Suppress automatic attachments

@@ -6,7 +6,6 @@
 
 #include "../file_sys_filter.h"
 
-#define DRIVER_SUBKEY_NAME L"\\REGISTRY\\MACHINE" SUBKEY_NAME
 #define PROCESS_NAME_LENGTH 1 << 8
 
 typedef struct {

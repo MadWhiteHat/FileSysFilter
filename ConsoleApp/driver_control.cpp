@@ -3,17 +3,19 @@
 #include <iostream>
 #include <iomanip>
 #include <windows.h>
-#include <newdev.h>
+#include <setupapi.h>
 
 void
 DriverControl::
 Start() {
-  SC_HANDLE __hService = this->_GetServiceHandle();
   BOOL __res = FALSE;
-  if (__hService == NULL) {
+  SC_HANDLE __hService = NULL;
+  __res = this->_GetServiceHandle(&__hService);
+  if (__res == FALSE) {
     this->_PrintError("_GetServiceHandle", GetLastError());
     return;
   }
+  
   __res = StartServiceW(__hService, 0, NULL);
   if (__res == FALSE) {
     if (GetLastError() == ERROR_SERVICE_ALREADY_RUNNING) {
@@ -26,6 +28,7 @@ Start() {
   }
   __res = _WaitForServiceState(__hService, SERVICE_RUNNING);
   if (__res  == FALSE) { _PrintError("_WaitForServiceState", GetLastError()); }
+
   CloseServiceHandle(__hService);
   return;
 }
@@ -33,10 +36,11 @@ Start() {
 void
 DriverControl::
 Stop() {
-  SC_HANDLE __hService = this->_GetServiceHandle();
-  SERVICE_STATUS __serviceStatus;
   BOOL __res = FALSE;
-  if (__hService == NULL) {
+  SC_HANDLE __hService = NULL;
+  SERVICE_STATUS __serviceStatus;
+  __res = this->_GetServiceHandle(&__hService);
+  if (__res == FALSE) {
     this->_PrintError("_GetServiceHandle", GetLastError());
     return;
   }
@@ -59,12 +63,27 @@ Stop() {
 void
 DriverControl::
 Install() {
-  LPCWSTR __path = L"..\\x64\\Release\\FileSysDriver\\FileSysDriver.inf";
+  BOOL __res = FALSE;
+  SC_HANDLE __hService = NULL;
+  __res = this->_GetServiceHandle(&__hService);
+  if (__res == TRUE) {
+    std::cout << "Driver has been already installed!\n";
+    CloseServiceHandle(__hService);
+    return;
+  }
+
+  std::wstring __path(L"..\\x64");
+#ifdef _DEBUG
+  __path += L"\\Debug";
+#else
+  __path += L"\\Release";
+#endif // DEBUG
+  __path += L"\\" DRIVER_NAME "\\" DRIVER_NAME ".inf";            
+  std::wcout << __path << std::endl;
   DWORD __length = 0;
   WCHAR* __fullPath = nullptr;
-  BOOL __res = FALSE;
 
-  __length = GetFullPathNameW(__path, __length, __fullPath, nullptr);
+  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
   if (__length == 0) {
     _PrintError("GetFullPathNameW", GetLastError());
     return;
@@ -74,56 +93,101 @@ Install() {
     _PrintError("Memory allocation", 0);
     return;
   }
-  __length = GetFullPathNameW(__path, __length, __fullPath, nullptr);
+  std::memset(__fullPath, 0x00, (__length + 1) * sizeof(WCHAR));
+  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
   if (__length == 0) {
     _PrintError("GetFullPathNameW", GetLastError());
     delete[] __fullPath;
     return;
   }
 
-  __res = DiInstallDriverW(
-    nullptr,
-    __fullPath,
-    DIIRFLAG_FORCE_INF,
-    nullptr
-  );
-
-  if (__res == FALSE) {
-    _PrintError("DiInstallDriverW", GetLastError());
-  } else { std::cout << "Driver was installed sucessfully" << std::endl; }
-
+  std::wstring __cmdLine(L"DefaultInstall 132 ");
+  __cmdLine += __fullPath;
   delete[] __fullPath;
+
+  InstallHinfSectionW(NULL, NULL, __cmdLine.data(), 0);
+
   return;
 }
-void
-DriverControl::
-EnableCreateThreadNotify() { this->_SendIOCTLCode(IOCTL_SET_LOAD_IMAGE); }
 
 void
 DriverControl::
-DisableCreateThreadNotify() {
-  this->_SendIOCTLCode(IOCTL_REMOVE_LOAD_IMAGE);
+Uninstall() {
+  BOOL __res = FALSE;
+  SC_HANDLE __hService = NULL;
+  __res = this->_GetServiceHandle(&__hService);
+  if (__res == FALSE) {
+    this->_PrintError("_GetServiceHandle", GetLastError());
+    return;
+  }
+  CloseServiceHandle(__hService);
+
+  std::wstring __path(L"..\\x64");
+#ifdef _DEBUG
+  __path += L"\\Debug";
+#else
+  __path += L"\\Release";
+#endif // DEBUG
+  __path += L"\\" DRIVER_NAME "\\" DRIVER_NAME ".inf";            
+  DWORD __length = 0;
+  WCHAR* __fullPath = nullptr;
+
+  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
+  if (__length == 0) {
+    _PrintError("GetFullPathNameW", GetLastError());
+    return;
+  }
+  __fullPath = new(std::nothrow) WCHAR[__length + 1];
+  if (__fullPath == nullptr) {
+    _PrintError("Memory allocation", 0);
+    return;
+  }
+  std::memset(__fullPath, 0x00, (__length + 1) * sizeof(WCHAR));
+  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
+  if (__length == 0) {
+    _PrintError("GetFullPathNameW", GetLastError());
+    delete[] __fullPath;
+    return;
+  }
+
+  std::wstring __cmdLine(L"DefaultUninstall 132 ");
+  __cmdLine += __fullPath;
+  delete[] __fullPath;
+
+  InstallHinfSectionW(NULL, NULL, __cmdLine.data(), 0);
+
+  return;
 }
 
 void
 DriverControl::
-Update() { this->_SendIOCTLCode(IOCTL_DO_UPDATE_RULES); }
+EnableLoadImageNotify() { this->_SendIOCTLCode(IOCTL_SET_LOAD_IMAGE); }
 
-SC_HANDLE
-DriverControl::_GetServiceHandle() {
+void
+DriverControl::
+DisableLoadImageNotify() { this->_SendIOCTLCode(IOCTL_REMOVE_LOAD_IMAGE); }
+
+void
+DriverControl::
+Update() { this->_SendIOCTLCode(IOCTL_UPDATE_RULES); }
+
+BOOL
+DriverControl::
+_GetServiceHandle(SC_HANDLE* __hService) {
+  BOOL __res = FALSE;
   SC_HANDLE __hSCM = NULL;
-  SC_HANDLE __hService = NULL;
+  *__hService = NULL;
 
   __hSCM = OpenSCManagerW(NULL, NULL, SC_MANAGER_ALL_ACCESS);
-  if (__hSCM != NULL) {
-    __hService = OpenServiceW(__hSCM, DRIVER_NAME, SERVICE_ALL_ACCESS);
-    if (__hService == NULL) {
-      this->_PrintError("OpenServiceW", GetLastError());
-    }
-    CloseServiceHandle(__hSCM);
-  } else { _PrintError("OpenSCManagerW", GetLastError()); }
-
-  return __hService;
+  if (__hSCM == NULL) {
+    _PrintError("OpenSCManagerW", GetLastError());
+    return __res;
+  }
+  *__hService = OpenServiceW(__hSCM, DRIVER_NAME, SERVICE_ALL_ACCESS);
+  if (*__hService == NULL) { _PrintError("OpenServiceW", GetLastError()); }
+  else { __res = TRUE; }
+  CloseServiceHandle(__hSCM);
+  return __res;
 }
 
 void
@@ -135,7 +199,7 @@ _SendIOCTLCode(DWORD __ioctlCode) {
   DWORD __bytesRet = 0;
 
   __hDriver = CreateFileW(
-    KERNEL_MODE_DRIVER_NAME,
+    DRIVER_USERMODE_NAME,
     GENERIC_READ | GENERIC_WRITE,
     0,
     NULL,
@@ -207,5 +271,5 @@ DriverControl::
 _PrintError(std::string&& __funcName, DWORD __errCode) {
   std::cout << __funcName << " failed with: 0x";
   std::cout << std::setw(8) << std::setfill('0') << std::right
-    << std::hex << __errCode << std::endl;
+    << std::hex << __errCode << '\n';
 }

@@ -1,107 +1,75 @@
-#include <fltKernel.h>
-#include <wdm.h>
-#include <stdarg.h>
-#include <dontuse.h>
-#include <suppress.h>
+#include "filter.h"
 
-#include "../file_sys_filter.h"
-#include "rules_list.h"
-#include "driver.h"
+#ifdef ALLOC_PRAGMA
 
-const UNICODE_STRING gMyProgName = RTL_CONSTANT_STRING(CONSOLE_PROGRAM_NAME);
+#pragma alloc_text(PAGE, FSFltCreateCDO)
+#pragma alloc_text(PAGE, FSFltDeleteCDO)
+#pragma alloc_text(PAGE, FSFltPreDriverControl)
+//#pragma alloc_text(PAGE, SetLoadImageNotify)
+//#pragma alloc_text(PAGE, RemoveLoadImageNotify)
+//#pragma alloc_text(PAGE, LoadImageNotify)
 
-PFLT_FILTER gDriverHandle = NULL;
-HANDLE gLoadImageLogFile = NULL;
-ULONG gCurrTag = 0x20202020;
-MyRuleList* gMyRuleList = NULL;
-ULONG gRegTag = 0x7f7f7f7f;
-ULONG gLoadTag = 0x7f7f7f7e;
-
-CONST FLT_OPERATION_REGISTRATION gCallbacks[] = {
-  { IRP_MJ_DEVICE_CONTROL,
-    0,
-    FltPreDriverControl,
-    NULL,
-  },
-  { IRP_MJ_OPERATION_END }
-};
-
-CONST FLT_REGISTRATION gFilterRegistration = {
-  sizeof(FLT_REGISTRATION),               // Size
-  FLT_REGISTRATION_VERSION,               // Version
-  0,                                      // Flags
-  NULL,                                   // Context
-  gCallbacks,                             // Operation callbacks
-  DriverUnload,                           // Filter unload callback
-  NULL,                                   // Instance setup callback
-  DriverInstanceQueryTeardown,            // Instance query teardown callback
-  NULL,                                   // Instance teardown start callback
-  NULL,                                   // Instance teardown complete callback
-  NULL,                                   // Generate filename callback
-  NULL,                                   // Normalize name component callback
-  NULL,                                   // Normalize context cleanup callback
-  NULL,                                   // Transaction notification callback
-};
+#endif // ALLOC_PRAGMA
 
 NTSTATUS
-DriverEntry(
-  _In_ PDRIVER_OBJECT  __driverObj,
-  _In_ PUNICODE_STRING __registryPath) {
-
+_Function_class_(DRIVER_INITIALIZE)
+FSFltCreateCDO(
+  _Inout_ PDRIVER_OBJECT __driverObj
+) {
   NTSTATUS __resStatus = STATUS_SUCCESS;
+  UNICODE_STRING __cdoName;
+  UNICODE_STRING __symLink;
 
-  UNREFERENCED_PARAMETER(__registryPath);
+  PAGED_CODE();
 
-  _PrintDebugStatus("DriverEntry start");
+  PRINT_STATUS("Creating CDO...");
 
-  __resStatus = FltRegisterFilter(
+  RtlInitUnicodeString(&__cdoName, DRIVER_CDO_NAME);
+  RtlInitUnicodeString(&__symLink, DRIVER_USERMODE_NAME);
+  
+  __resStatus = IoCreateDevice(
     __driverObj,
-    &gFilterRegistration,
-    &gDriverHandle
+    0,
+    &__cdoName,
+    FILE_DEVICE_DISK_FILE_SYSTEM,
+    FILE_DEVICE_SECURE_OPEN,
+    FALSE,
+    &_global._filterControlDeviceObject
   );
+
   if (!NT_SUCCESS(__resStatus)) {
-    PrintDebugError("FltRegisterFilter", __resStatus);
+    PRINT_ERROR("IoCreateDevice", __resStatus);
     return __resStatus;
-  }
-  __resStatus = FltStartFiltering(gDriverHandle);
+  } else { PRINT_SUCCESS("IoCreateDevice"); }
+
+  __resStatus = IoCreateSymbolicLink(&__symLink, &__cdoName);
   if (!NT_SUCCESS(__resStatus)) {
-    PrintDebugError("FltStartFiltering", __resStatus);
-    FltUnregisterFilter(gDriverHandle);
+    PRINT_ERROR("IoCreateSymbolicLink", __resStatus);
     return __resStatus;
-  }
+  } else { PRINT_SUCCESS("IoCreateSymbolicLink"); }
 
-  return __resStatus;
-}
-
-
-NTSTATUS
-DriverUnload(
-  _In_ FLT_FILTER_UNLOAD_FLAGS __flags
-) {
-  UNREFERENCED_PARAMETER(__flags);
-
-  PAGED_CODE();
-
-  FltUnregisterFilter(gDriverHandle);
-
+  PRINT_SUCCESS("Creating CDO");
   return STATUS_SUCCESS;
 }
 
-NTSTATUS
-DriverInstanceQueryTeardown(
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS __flags
-) {
-  UNREFERENCED_PARAMETER(__fltObjects);
-  UNREFERENCED_PARAMETER(__flags);
+VOID
+FSFltDeleteCDO(VOID) {
+  UNICODE_STRING __symLink;
 
   PAGED_CODE();
 
-  return STATUS_SUCCESS;
+  PRINT_STATUS("Deleting CDO...");
+
+  RtlInitUnicodeString(&__symLink, DRIVER_USERMODE_NAME);
+  IoDeleteSymbolicLink(&__symLink);
+
+  IoDeleteDevice(_global._filterControlDeviceObject);
+
+  PRINT_SUCCESS("Deleting CDO");
 }
 
 FLT_PREOP_CALLBACK_STATUS
-FltPreDriverControl(
+FSFltPreDriverControl(
   _Inout_ PFLT_CALLBACK_DATA __data,
   _In_ PCFLT_RELATED_OBJECTS __fltObjects,
   _Out_ PVOID* __completionContext
@@ -118,23 +86,27 @@ FltPreDriverControl(
   PAGED_CODE(); 
 
   switch (__ioCtlCode) {
-    case IOCTL_DO_UPDATE_RULES:
+    case IOCTL_UPDATE_RULES:
       __driverIo->_resVal = 1;
+      PRINT_STATUS("IOCTL_UPDATE_RULES");
       break;
     case IOCTL_SET_LOAD_IMAGE:
       __driverIo->_resVal = 2;
+      PRINT_STATUS("IOCTL_SET_LOAD_IMAGE");
       break;
     case IOCTL_REMOVE_LOAD_IMAGE:
       __driverIo->_resVal = 3;
+      PRINT_STATUS("IOCTL_REMOVE_LOAD_IMAGE");
       break;
     default:
       __driverIo->_resVal = 4;
+      PRINT_STATUS("IOCTL_DEFAULT");
       break;
   }
 
   return __callbackStatus;
 }
-
+/*
 int
 SetLoadImageNotify() {
   NTSTATUS __resStatus = STATUS_SUCCESS;
@@ -178,7 +150,7 @@ SetLoadImageNotify() {
     gLoadImageLogFile = NULL;
     return DRIVER_ERROR_SET_NOTIFY_ROUTINE;
   }
-  PrintDebugSuccess("PsSetLoadImageNotifyRoutine");
+  PRINT_SUCCESS("PsSetLoadImageNotifyRoutine");
   return DRIVER_ERROR_SUCCESS;
 }
 
@@ -197,7 +169,7 @@ RemoveLoadImageNotify() {
   }
   ZwClose(gLoadImageLogFile);
   gLoadImageLogFile = NULL;
-  PrintDebugSuccess("PsRemoveLoadImageNotifyRoutine");
+  PRINT_SUCCESS("PsRemoveLoadImageNotifyRoutine");
   return DRIVER_ERROR_SUCCESS;
 }
 
@@ -224,25 +196,6 @@ LoadImageNotify(
   UNREFERENCED_PARAMETER(__procName);
   UNREFERENCED_PARAMETER(__ioStatusBlock);
 
-  PrintDebugSuccess("LoadImage");
+  PRINT_SUCCESS("LoadImageNotify");
 }
-
-inline
-void
-PrintDebugError(const char* __funcName, NTSTATUS __errCode) {
-  _PrintDebugStatus("%s failed with 0x%08x\n", __funcName, __errCode);
-}
-
-inline
-void
-PrintDebugSuccess(const char* __funcName) {
-  _PrintDebugStatus("%s SUCCESS", __funcName);
-}
-
-inline
-void _PrintDebugStatus(const char* __fmt, ...) {
-  va_list __args;
-  va_start(__args, __fmt);
-  DbgPrint("RegistryFilter: ", __args);
-  va_end(__args);
-}
+*/

@@ -7,7 +7,7 @@
 
 #include "../file_sys_filter.h"
 
-#define CONF_FILE_PATH L"C:\\Windows\\" _CONF_FILE_PATH
+#define CONF_FILE_PATH L"rules.xml"
 
 class MyRuleList {
 public:
