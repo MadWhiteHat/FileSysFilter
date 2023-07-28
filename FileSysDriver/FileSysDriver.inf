@@ -98,7 +98,7 @@ DiskId1                 = "FileSysDriver Device Installation Disk"
 ; Instances Specific Information
 ;*****************************************
 
-DefaultInstance         = "FileSysDriver Instance"
-Instance1.Name          = "FileSysDriver Instance"
+DefaultInstance         = "FileSysDriver"
+Instance1.Name          = "FileSysDriver"
 Instance1.Altitude = "389999"
-Instance1.Flags = 0x1 ; Suppress automatic attachments
+Instance1.Flags = 0x1 ; Allow automatic attachments

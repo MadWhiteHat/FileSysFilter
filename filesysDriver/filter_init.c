@@ -35,7 +35,7 @@ DriverEntry(
     NULL                                    // Transaction notification callback
   };
 
-  PRINT_STATUS("DriverEntry starting...");
+  PRINT_STATUS("DriverEntry starting...\n");
 
   UNREFERENCED_PARAMETER(__registryPath);
 
@@ -55,9 +55,26 @@ DriverEntry(
     return __resStatus;
   } else { PRINT_SUCCESS("FltRegisterFilter"); }
 
+  ULONG __totalReturned;
+  __resStatus = FltEnumerateInstances(
+    NULL,
+    _global._filter,
+    NULL,
+    0,
+    &__totalReturned
+  );
+
+  if (!NT_SUCCESS(__resStatus) && __resStatus != STATUS_BUFFER_TOO_SMALL) {
+    FltUnregisterFilter(_global._filter);
+    return __resStatus;
+  }
+
+  PRINT_STATUS("Total instances: %ld", __totalReturned);
+
   __resStatus = FSFltCreateCDO(__driverObj);
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("FSFltCreateCDO", __resStatus);
+    FltUnregisterFilter(_global._filter);
     return __resStatus;
   } else { PRINT_SUCCESS("FSFltCreateCDO"); }
 
@@ -69,20 +86,35 @@ NTSTATUS
 DriverUnload(
   _In_ FLT_FILTER_UNLOAD_FLAGS __flags
 ) {
+  NTSTATUS __resStatus = STATUS_SUCCESS;
+  ULONG __result = DRIVER_ERROR_SUCCESS;
+
   UNREFERENCED_PARAMETER(__flags);
 
   PAGED_CODE();
-  PRINT_STATUS("DriverUnload starting..");
+  PRINT_STATUS("DriverUnload starting...\n");
 
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_CDO_OPEN_REF)
     && FlagOn(__flags, FLTFL_FILTER_UNLOAD_MANDATORY)) {
-    PRINT_STATUS("Unloading driver is optional and the CDO is open");
+    PRINT_STATUS("Unloading driver is optional and the CDO is open\n");
     PRINT_ERROR("DriverUnload", 0);
     return STATUS_FLT_DO_NOT_DETACH;
   }
 
+  if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET)) {
+    __resStatus = FSFltRemoveLoadImageNotify(&__result);
+    if (!NT_SUCCESS(__resStatus)) {
+      PRINT_ERROR("DriverUnload", __resStatus);
+      return STATUS_FLT_DO_NOT_DETACH;
+    }
+  }
+
+  if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED)) {
+    ZwClose(_global._loadImageLogFile);
+    ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED);
+  }
+
   FltUnregisterFilter(_global._filter);
-  _global._filter = NULL;
 
   FSFltDeleteCDO();
 

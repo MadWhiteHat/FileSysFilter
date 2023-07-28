@@ -20,7 +20,7 @@
 #if DBG
 
 #define PRINT_STATUS(FMT, ...) \
-  DbgPrint("[FileSysFilter]: " FMT "\n", __VA_ARGS__);
+  DbgPrint("[FileSysFilter]: " FMT, __VA_ARGS__);
 
 #else
 
@@ -29,9 +29,9 @@
 #endif //DBG
 
 #define PRINT_ERROR(FUNC, ERR_CODE) \
-  PRINT_STATUS("%s failed with 0x%08x", FUNC, ERR_CODE);
+  PRINT_STATUS("%s failed with 0x%08x\n", FUNC, ERR_CODE);
 #define PRINT_SUCCESS(FUNC) \
-  PRINT_STATUS("%s SUCCESS", FUNC);
+  PRINT_STATUS("%s SUCCESS\n", FUNC);
 
 #define LOG_FILE_NAME L"\\SystemRoot\\MBKS\\ImageNotify.log"
 #define CONSOLE_PROGRAM_NAME L"ConsoleApp.exe"
@@ -40,8 +40,12 @@
 #define START_TAG 0x20202020UL
 #define LOAD_TAG 0x7f7f7f7fUL
 
-#define GLOBAL_DATA_FLAG_CDO_OPEN_REF 0x00000001
-#define GLOBAL_DATA_FLAG_CDO_OPEN_HANDLE 0x00000002
+#define DRIVER_LOAD_IMAGE_BUFFER_LENGTH 1024
+
+#define GLOBAL_DATA_FLAG_CDO_OPEN_REF (1UL << 0)
+#define GLOBAL_DATA_FLAG_CDO_OPEN_HANDLE (1UL << 1)
+#define GLOBAL_DATA_FLAG_LOG_FILE_OPENED (1UL << 2)
+#define GLOBAL_DATA_FLAG_LOAD_IMAGE_SET (1UL << 3)
 
 typedef struct _FILTER_GLOBAL_DATA {
   PFLT_FILTER _filter;
@@ -81,23 +85,47 @@ FSFltCreateCDO(
 VOID
 FSFltDeleteCDO(VOID);
 
-FLT_PREOP_CALLBACK_STATUS
-FSFltPreDriverControl(
-  _Inout_ PFLT_CALLBACK_DATA __data,
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _Out_ PVOID* __completionContext
+NTSTATUS
+FSFltMajorFunction(
+  _In_ PDEVICE_OBJECT __deviceObj,
+  _Inout_ PIRP __irp
 );
-/*
-int
-SetLoadImageNotify();
-int
-RemoveLoadImageNotify();
 
-void
-LoadImageNotify(
-  _In_opt_ PUNICODE_STRING FullImageName,
-  _In_ HANDLE ProcessId,
-  _In_ PIMAGE_INFO ImageInfo
+NTSTATUS
+FSFltHandleCreate(
+  _In_ PIRP __irp
 );
-*/
+
+NTSTATUS
+FSFltHandleClose(
+  _In_ PIRP __irp
+);
+
+NTSTATUS
+FSFltHandleCleanup(
+  _In_ PIRP __irp
+);
+
+NTSTATUS
+FSFltDeviceControl(
+  _In_ PIRP __irp
+);
+
+NTSTATUS
+FSFltSetLoadImageNotify(
+  _Inout_ ULONG* __result
+);
+
+NTSTATUS
+FSFltRemoveLoadImageNotify(
+  _Inout_ ULONG* __result
+);
+
+VOID
+FSFltLoadImageNotify(
+  _In_opt_ PUNICODE_STRING __fullImageName,
+  _In_ HANDLE __processId,
+  _In_ PIMAGE_INFO __imageInfo
+);
+
 #endif // !_DRIVER_H
