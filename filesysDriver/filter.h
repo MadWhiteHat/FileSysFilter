@@ -39,7 +39,6 @@
 
 #define START_TAG 0x20202020UL
 #define LOAD_TAG 0x7f7f7f7fUL
-#define INSTANCES_TAG 0x7f7f7f7eUL
 
 #define DRIVER_LOAD_IMAGE_BUFFER_LENGTH 1024
 
@@ -47,16 +46,12 @@
 #define GLOBAL_DATA_FLAG_CDO_OPEN_HANDLE (1UL << 1)
 #define GLOBAL_DATA_FLAG_LOG_FILE_OPENED (1UL << 2)
 #define GLOBAL_DATA_FLAG_LOAD_IMAGE_SET (1UL << 3)
-#define GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED (1UL << 4)
-#define GLOBAL_DATA_FLAG_INSTANCES_REFERENCED (1UL << 5)
 
 typedef struct _FILTER_GLOBAL_DATA {
   PFLT_FILTER _filter;
   PDRIVER_OBJECT _filterDriverObject;
   PDEVICE_OBJECT _filterControlDeviceObject;
   ULONG _filterFlags;
-  PFLT_INSTANCE* _filterInstances;
-  ULONG _filterInstancesCount;
   HANDLE _filterLogFile;
   ULONG _currTag;
   MyRuleList* _myRuleList;
@@ -75,30 +70,11 @@ FSFltUnload(
   _In_ FLT_FILTER_UNLOAD_FLAGS __flags
 );
 
-NTSTATUS
-FSFltInstanceSetup(
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _In_ FLT_INSTANCE_SETUP_FLAGS __flags,
-  _In_ DEVICE_TYPE __volumeDeviceType,
-  _In_ FLT_FILESYSTEM_TYPE __volumeFilesystemType
-);
 
 NTSTATUS
 FSFltInstanceQueryTeardown(
   _In_ PCFLT_RELATED_OBJECTS __fltObjects,
   _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS __flags
-);
-
-VOID
-FSFltInstanceTeardownStart(
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _In_ FLT_INSTANCE_TEARDOWN_FLAGS __flags
-);
-
-VOID
-FSFltInstanceTeardownComplete(
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _In_ FLT_INSTANCE_TEARDOWN_FLAGS __flags
 );
 
 NTSTATUS
@@ -109,12 +85,6 @@ FSFltCreateCDO(
 
 VOID
 FSFltDeleteCDO(VOID);
-
-NTSTATUS
-FSFltReferenceInstances(VOID);
-
-VOID
-FSFltDereferenceInstances(VOID);
 
 NTSTATUS
 FSFltMajorFunction(

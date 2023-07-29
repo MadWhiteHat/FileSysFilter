@@ -5,10 +5,7 @@
 
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(PAGE, FSFltUnload)
-#pragma alloc_text(PAGE, FSFltInstanceSetup)
 #pragma alloc_text(PAGE, FSFltInstanceQueryTeardown)
-#pragma alloc_text(PAGE, FSFltInstanceTeardownStart)
-#pragma alloc_text(PAGE, FSFltInstanceTeardownComplete)
 
 #endif // ALLOC_PRAGMA
 
@@ -28,10 +25,10 @@ DriverEntry(
     NULL,                                   // Context
     NULL,                                   // Operation callbacks
     FSFltUnload,                            // Filter unload callback
-    FSFltInstanceSetup,                     // Instance setup callback
+    NULL,                                   // Instance setup callback
     FSFltInstanceQueryTeardown,             // Instance query teardown callback
-    FSFltInstanceTeardownStart,             // Instance teardown start callback
-    FSFltInstanceTeardownComplete,          // Instance teardown complete callback
+    NULL,                                   // Instance teardown start callback
+    NULL,                                   // Instance teardown complete callback
     NULL,                                   // Generate filename callback
     NULL,                                   // Normalize name component callback
     NULL,                                   // Normalize context cleanup callback
@@ -76,15 +73,6 @@ DriverEntry(
     return __resStatus;
   } else { PRINT_SUCCESS("FltStartFiltering"); }
 
-  __resStatus = FSFltReferenceInstances();
-
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("FSFltReferenceInstances", __resStatus);
-    FSFltDeleteCDO();
-    FltUnregisterFilter(_global._filter);
-    return __resStatus;
-  } else { PRINT_SUCCESS("FSFltReferenceInstances"); }
-
   PRINT_SUCCESS("DriverEntry");
   return __resStatus;
 }
@@ -107,8 +95,6 @@ FSFltUnload(
     PRINT_ERROR("FSFltUnload", STATUS_UNSUCCESSFUL);
     return STATUS_FLT_DO_NOT_DETACH;
   }
-
-  FSFltDereferenceInstances();
 
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET)) {
     __resStatus = FSFltRemoveLoadImageNotify(&__result);
@@ -135,25 +121,6 @@ FSFltUnload(
 }
 
 NTSTATUS
-FSFltInstanceSetup(
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _In_ FLT_INSTANCE_SETUP_FLAGS __flags,
-  _In_ DEVICE_TYPE __volumeDeviceType,
-  _In_ FLT_FILESYSTEM_TYPE __volumeFilesystemType
-) {
-  UNREFERENCED_PARAMETER(__fltObjects);
-  UNREFERENCED_PARAMETER(__flags);
-  UNREFERENCED_PARAMETER(__volumeDeviceType);
-  UNREFERENCED_PARAMETER(__volumeFilesystemType);
-
-  PAGED_CODE();
-
-  PRINT_SUCCESS("FSFltInstanceSetup");
-
-  return STATUS_SUCCESS;
-}
-
-NTSTATUS
 FSFltInstanceQueryTeardown(
   _In_ PCFLT_RELATED_OBJECTS __fltObjects,
   _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS __flags
@@ -166,30 +133,4 @@ FSFltInstanceQueryTeardown(
   PRINT_SUCCESS("FSFltInstanceQueryTeardown");
 
   return STATUS_SUCCESS;
-}
-
-VOID
-FSFltInstanceTeardownStart(
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _In_ FLT_INSTANCE_TEARDOWN_FLAGS __flags
-) {
-  UNREFERENCED_PARAMETER(__fltObjects);
-  UNREFERENCED_PARAMETER(__flags);
-
-  PAGED_CODE();
-
-  PRINT_SUCCESS("FSFltInstanceTeardownStart");
-}
-
-VOID
-FSFltInstanceTeardownComplete(
-  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
-  _In_ FLT_INSTANCE_TEARDOWN_FLAGS __flags
-) {
-  UNREFERENCED_PARAMETER(__fltObjects);
-  UNREFERENCED_PARAMETER(__flags);
-
-  PAGED_CODE();
-
-  PRINT_SUCCESS("FSFltInstanceTeardownComplete");
 }

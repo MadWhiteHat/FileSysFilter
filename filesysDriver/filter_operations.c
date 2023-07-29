@@ -4,8 +4,6 @@
 
 #pragma alloc_text(PAGE, FSFltCreateCDO)
 #pragma alloc_text(PAGE, FSFltDeleteCDO)
-#pragma alloc_text(PAGE, FSFltReferenceInstances)
-#pragma alloc_text(PAGE, FSFltDereferenceInstances)
 #pragma alloc_text(PAGE, FSFltMajorFunction)
 #pragma alloc_text(PAGE, FSFltHandleCreate)
 #pragma alloc_text(PAGE, FSFltHandleClose)
@@ -69,117 +67,6 @@ FSFltDeleteCDO(VOID) {
   IoDeleteSymbolicLink(&__symLink);
 
   IoDeleteDevice(_global._filterControlDeviceObject);
-}
-
-NTSTATUS
-FSFltReferenceInstances(VOID) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
-  ULONG __totalInstances;
-
-  PAGED_CODE();
-
-  __resStatus = FltEnumerateInstances(
-    NULL,
-    _global._filter,
-    NULL,
-    0,
-    &__totalInstances
-  );
-
-  PRINT_STATUS(
-    "Total FilesystemDriver instances: %ld",
-    __totalInstances
-  );
-
-  if (!NT_SUCCESS(__resStatus) && __resStatus != STATUS_BUFFER_TOO_SMALL) {
-    PRINT_ERROR("FltEnumerateInstances", __resStatus);
-    return __resStatus;
-  } else { PRINT_SUCCESS("FltEnumerateInstances"); }
-
-  _global._filterInstancesCount = __totalInstances;
-
-  // Loop until all instances wont be allocated
-  for (;;) {
-    if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED)) {
-      ExFreePoolWithTag(_global._filterInstances, INSTANCES_TAG);
-      ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED);
-      _global._filterInstances = NULL;
-    }
-
-    if (_global._filterInstancesCount) {
-      _global._filterInstances = ExAllocatePoolWithTag(
-        PagedPool | POOL_COLD_ALLOCATION,
-        _global._filterInstancesCount * sizeof(PFLT_INSTANCE),
-        INSTANCES_TAG
-      );
-      // Allocation result
-      if (_global._filterInstances == NULL) {
-        _global._filterInstancesCount = 0;
-        return STATUS_INSUFFICIENT_RESOURCES;
-      } else {
-        SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED);
-      }
-    }
-
-    // List instances
-    __resStatus = FltEnumerateInstances(
-      NULL,
-      _global._filter,
-      _global._filterInstances,
-      _global._filterInstancesCount,
-      &__totalInstances
-    );
-
-    if (NT_SUCCESS(__resStatus)) {
-      _global._filterInstancesCount = __totalInstances;
-      if (_global._filterInstancesCount) {
-        SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_REFERENCED);
-      }
-      break;
-    } else if (__resStatus == STATUS_BUFFER_TOO_SMALL) {
-      _global._filterInstancesCount = __totalInstances;
-      continue;
-    } else {
-      _global._filterInstancesCount = 0;
-      ExFreePoolWithTag(_global._filterInstances, INSTANCES_TAG);
-      ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED);
-      return __resStatus;
-    }
-  }
-
-  PRINT_SUCCESS("FSFltReferenceInstances");
-
-  return __resStatus;
-}
-
-VOID
-FSFltDereferenceInstances(VOID) {
-  
-  PAGED_CODE();
-
-  if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_REFERENCED)
-    && !FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED)) {
-    PRINT_STATUS("%s", "Cannot dereference instances at non allocated storage");
-    PRINT_ERROR("FSFltDereferenceInstances", STATUS_UNSUCCESSFUL);
-    return;
-  }
-
-  if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_REFERENCED)) {
-    for (ULONG i = 0; i < _global._filterInstancesCount; ++i) {
-      FltObjectDereference(_global._filterInstances[i]);
-      _global._filterInstances[i] = NULL;
-    }
-    ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_REFERENCED);
-  }
-
-  if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED)) {
-    ExFreePoolWithTag(_global._filterInstances, INSTANCES_TAG);
-    ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_REFERENCED);
-    _global._filterInstances = NULL;
-    _global._filterInstancesCount = 0;
-  }
-
-  PRINT_SUCCESS("FSFltDereferenceInstances");
 }
 
 NTSTATUS
@@ -402,12 +289,6 @@ FSFltSetLoadImageNotify(
     return STATUS_INVALID_PARAMETER;
   }
 
-  if (!FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_ALLOCATED)
-    && !FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_INSTANCES_REFERENCED)) {
-    *__result = DRIVER_ERROR_LOG_FILE_CREATE_FAILED;
-    return STATUS_UNSUCCESSFUL;
-  }
-
   RtlInitUnicodeString(&__logFileName, LOG_FILE_NAME);
 
 
@@ -419,26 +300,22 @@ FSFltSetLoadImageNotify(
     NULL
   );
 
-  __resStatus = FltCreateFile(
-    _global._filter,
-    _global._filterInstances[0],
+  __resStatus = ZwCreateFile(
     &_global._filterLogFile,
     FILE_APPEND_DATA | SYNCHRONIZE,
     &__objAttrs,
     &__ioStatusBlock,
     NULL,
     FILE_ATTRIBUTE_NORMAL,
-    FILE_SHARE_READ | FILE_SHARE_WRITE,
-    FILE_OPEN_IF,
-    FILE_WRITE_THROUGH | FILE_SYNCHRONOUS_IO_NONALERT,
-    NULL,
     0,
+    FILE_OPEN_IF,
+    FILE_WRITE_THROUGH | FILE_SYNCHRONOUS_IO_ALERT,
+    NULL,
     0
   );
 
   if (!NT_SUCCESS(__resStatus)) {
-    _global._filterLogFile = NULL;
-    PRINT_ERROR("FltCreateFile", __resStatus);
+    PRINT_ERROR("ZwCreateFile", __resStatus);
     *__result = DRIVER_ERROR_LOG_FILE_CREATE_FAILED;
     return __resStatus;
   }
@@ -448,7 +325,7 @@ FSFltSetLoadImageNotify(
   __resStatus = PsSetLoadImageNotifyRoutine(FSFltLoadImageNotify);
 
   if (!NT_SUCCESS(__resStatus)) {
-    FltClose(_global._filterLogFile);
+    ZwClose(_global._filterLogFile);
     ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED);
     PRINT_ERROR("PsSetLoadImageNotifyRoutine", __resStatus);
     *__result = DRIVER_ERROR_SET_LOAD_IMAGE;
@@ -488,7 +365,7 @@ FSFltRemoveLoadImageNotify(
   
   ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET);
 
-  FltClose(_global._filterLogFile);
+  ZwClose(_global._filterLogFile);
   ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED);
 
   PRINT_SUCCESS("PsRemoveLoadImageNotifyRoutine");
@@ -512,7 +389,7 @@ FSFltLoadImageNotify(
   TIME_FIELDS __timeFields;
   WCHAR __logStr[DRIVER_LOAD_IMAGE_BUFFER_LENGTH];
   size_t __logStrLen;
-//  IO_STATUS_BLOCK __ioStatusBlock;
+  IO_STATUS_BLOCK __ioStatusBlock;
 
   PAGED_CODE();
 
@@ -552,8 +429,8 @@ FSFltLoadImageNotify(
   }
 
   __logStrLen *= sizeof(__logStr[0]);
-/*
-  ZwWriteFile(
+
+  __resStatus = ZwWriteFile(
     _global._filterLogFile,
     NULL,
     NULL,
@@ -564,6 +441,6 @@ FSFltLoadImageNotify(
     NULL,
     NULL
   );
-*/
-  PRINT_STATUS("Bytes: %llu / Message: %ws", __logStrLen, __logStr);
+
+  PRINT_STATUS("NTSTATUS: 0x%08x / Bytes: %llu / Message: %ws", __resStatus, __logStrLen, __logStr);
 }
