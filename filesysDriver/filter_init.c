@@ -4,8 +4,11 @@
 #ifdef ALLOC_PRAGMA
 
 #pragma alloc_text(INIT, DriverEntry)
-#pragma alloc_text(PAGE, DriverUnload)
-#pragma alloc_text(PAGE, DriverInstanceQueryTeardown)
+#pragma alloc_text(PAGE, FSFltUnload)
+#pragma alloc_text(PAGE, FSFltInstanceSetup)
+#pragma alloc_text(PAGE, FSFltInstanceQueryTeardown)
+#pragma alloc_text(PAGE, FSFltInstanceTeardownStart)
+#pragma alloc_text(PAGE, FSFltInstanceTeardownComplete)
 
 #endif // ALLOC_PRAGMA
 
@@ -24,11 +27,11 @@ DriverEntry(
     0,                                      // Flags
     NULL,                                   // Context
     NULL,                                   // Operation callbacks
-    DriverUnload,                           // Filter unload callback
-    NULL,                                   // Instance setup callback
-    DriverInstanceQueryTeardown,            // Instance query teardown callback
-    NULL,                                   // Instance teardown start callback
-    NULL,                                   // Instance teardown complete callback
+    FSFltUnload,                            // Filter unload callback
+    FSFltInstanceSetup,                     // Instance setup callback
+    FSFltInstanceQueryTeardown,             // Instance query teardown callback
+    FSFltInstanceTeardownStart,             // Instance teardown start callback
+    FSFltInstanceTeardownComplete,          // Instance teardown complete callback
     NULL,                                   // Generate filename callback
     NULL,                                   // Normalize name component callback
     NULL,                                   // Normalize context cleanup callback
@@ -39,8 +42,8 @@ DriverEntry(
 
   UNREFERENCED_PARAMETER(__registryPath);
 
-  RtlZeroMemory(&_global, sizeof(_global));
-  
+  RtlSecureZeroMemory(&_global, sizeof(_global));
+
   _global._filterDriverObject = __driverObj;
   _global._currTag = START_TAG;
 
@@ -55,22 +58,6 @@ DriverEntry(
     return __resStatus;
   } else { PRINT_SUCCESS("FltRegisterFilter"); }
 
-  ULONG __totalReturned;
-  __resStatus = FltEnumerateInstances(
-    NULL,
-    _global._filter,
-    NULL,
-    0,
-    &__totalReturned
-  );
-
-  if (!NT_SUCCESS(__resStatus) && __resStatus != STATUS_BUFFER_TOO_SMALL) {
-    FltUnregisterFilter(_global._filter);
-    return __resStatus;
-  }
-
-  PRINT_STATUS("Total instances: %ld", __totalReturned);
-
   __resStatus = FSFltCreateCDO(__driverObj);
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("FSFltCreateCDO", __resStatus);
@@ -78,12 +65,32 @@ DriverEntry(
     return __resStatus;
   } else { PRINT_SUCCESS("FSFltCreateCDO"); }
 
+  __resStatus = FltStartFiltering(
+    _global._filter
+  );
+
+  if (!NT_SUCCESS(__resStatus)) {
+    PRINT_ERROR("FltStartFiltering", __resStatus);
+    FSFltDeleteCDO();
+    FltUnregisterFilter(_global._filter);
+    return __resStatus;
+  } else { PRINT_SUCCESS("FltStartFiltering"); }
+
+  __resStatus = FSFltReferenceInstances();
+
+  if (!NT_SUCCESS(__resStatus)) {
+    PRINT_ERROR("FSFltReferenceInstances", __resStatus);
+    FSFltDeleteCDO();
+    FltUnregisterFilter(_global._filter);
+    return __resStatus;
+  } else { PRINT_SUCCESS("FSFltReferenceInstances"); }
+
   PRINT_SUCCESS("DriverEntry");
   return __resStatus;
 }
 
 NTSTATUS
-DriverUnload(
+FSFltUnload(
   _In_ FLT_FILTER_UNLOAD_FLAGS __flags
 ) {
   NTSTATUS __resStatus = STATUS_SUCCESS;
@@ -92,39 +99,62 @@ DriverUnload(
   UNREFERENCED_PARAMETER(__flags);
 
   PAGED_CODE();
-  PRINT_STATUS("DriverUnload starting...\n");
+  PRINT_STATUS("FSFltUnload starting...\n");
 
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_CDO_OPEN_REF)
     && FlagOn(__flags, FLTFL_FILTER_UNLOAD_MANDATORY)) {
     PRINT_STATUS("Unloading driver is optional and the CDO is open\n");
-    PRINT_ERROR("DriverUnload", 0);
+    PRINT_ERROR("FSFltUnload", STATUS_UNSUCCESSFUL);
     return STATUS_FLT_DO_NOT_DETACH;
   }
+
+  FSFltDereferenceInstances();
 
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET)) {
     __resStatus = FSFltRemoveLoadImageNotify(&__result);
     if (!NT_SUCCESS(__resStatus)) {
-      PRINT_ERROR("DriverUnload", __resStatus);
+      PRINT_ERROR("FSFltRemoveLoadImageNotify", __resStatus);
       return STATUS_FLT_DO_NOT_DETACH;
-    }
+    } else { PRINT_SUCCESS("FSFltRemoveLoadImageNotify"); }
   }
 
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED)) {
-    ZwClose(_global._loadImageLogFile);
+    ZwClose(_global._filterLogFile);
     ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED);
   }
 
   FltUnregisterFilter(_global._filter);
 
+  PRINT_SUCCESS("FltUnregisterFilter");
+
   FSFltDeleteCDO();
 
-  PRINT_SUCCESS("DriverUnload");
+  PRINT_SUCCESS("FSFltUnload");
 
   return STATUS_SUCCESS;
 }
 
 NTSTATUS
-DriverInstanceQueryTeardown(
+FSFltInstanceSetup(
+  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
+  _In_ FLT_INSTANCE_SETUP_FLAGS __flags,
+  _In_ DEVICE_TYPE __volumeDeviceType,
+  _In_ FLT_FILESYSTEM_TYPE __volumeFilesystemType
+) {
+  UNREFERENCED_PARAMETER(__fltObjects);
+  UNREFERENCED_PARAMETER(__flags);
+  UNREFERENCED_PARAMETER(__volumeDeviceType);
+  UNREFERENCED_PARAMETER(__volumeFilesystemType);
+
+  PAGED_CODE();
+
+  PRINT_SUCCESS("FSFltInstanceSetup");
+
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS
+FSFltInstanceQueryTeardown(
   _In_ PCFLT_RELATED_OBJECTS __fltObjects,
   _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS __flags
 ) {
@@ -133,7 +163,33 @@ DriverInstanceQueryTeardown(
 
   PAGED_CODE();
 
-  PRINT_SUCCESS("DriverInstanceQueryTeardown");
+  PRINT_SUCCESS("FSFltInstanceQueryTeardown");
 
   return STATUS_SUCCESS;
+}
+
+VOID
+FSFltInstanceTeardownStart(
+  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
+  _In_ FLT_INSTANCE_TEARDOWN_FLAGS __flags
+) {
+  UNREFERENCED_PARAMETER(__fltObjects);
+  UNREFERENCED_PARAMETER(__flags);
+
+  PAGED_CODE();
+
+  PRINT_SUCCESS("FSFltInstanceTeardownStart");
+}
+
+VOID
+FSFltInstanceTeardownComplete(
+  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
+  _In_ FLT_INSTANCE_TEARDOWN_FLAGS __flags
+) {
+  UNREFERENCED_PARAMETER(__fltObjects);
+  UNREFERENCED_PARAMETER(__flags);
+
+  PAGED_CODE();
+
+  PRINT_SUCCESS("FSFltInstanceTeardownComplete");
 }
