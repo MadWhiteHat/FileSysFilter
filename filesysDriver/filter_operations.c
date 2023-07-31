@@ -309,7 +309,7 @@ FSFltSetLoadImageNotify(
     FILE_ATTRIBUTE_NORMAL,
     0,
     FILE_OPEN_IF,
-    FILE_WRITE_THROUGH | FILE_SYNCHRONOUS_IO_ALERT,
+    FILE_WRITE_THROUGH | FILE_SYNCHRONOUS_IO_NONALERT,
     NULL,
     0
   );
@@ -383,7 +383,7 @@ FSFltLoadImageNotify(
   static_assert(
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH < NTSTRSAFE_MAX_CCH,
     "Buffer size is bigger than allowed by NTSTRSAFE_MAX_CCH constant"
-    );
+  );
   NTSTATUS __resStatus = STATUS_SUCCESS;
   LARGE_INTEGER __systemTime, __localTime;
   TIME_FIELDS __timeFields;
@@ -393,13 +393,18 @@ FSFltLoadImageNotify(
 
   PAGED_CODE();
 
-  if (__fullImageName == NULL) { return; }
+  if (__fullImageName == NULL || __imageInfo == NULL) { return; }
+  PRINT_SUCCESS("1");
 
   RtlSecureZeroMemory(__logStr, DRIVER_LOAD_IMAGE_BUFFER_LENGTH);
+  PRINT_SUCCESS("2");
 
   KeQuerySystemTime(&__systemTime);
+  PRINT_SUCCESS("3");
   ExSystemTimeToLocalTime(&__systemTime, &__localTime);
+  PRINT_SUCCESS("4");
   RtlTimeToTimeFields(&__localTime, &__timeFields);
+  PRINT_SUCCESS("5");
 
   __resStatus = RtlStringCchPrintfW(
     __logStr,
@@ -411,22 +416,26 @@ FSFltLoadImageNotify(
     __processId, __fullImageName,
     __imageInfo->ImageBase, __imageInfo->ImageSize
   );
+  PRINT_SUCCESS("6");
 
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("RtlStringCchPrintfW", __resStatus);
     return;
   }
+  PRINT_SUCCESS("7");
 
   __resStatus = RtlStringCchLengthW(
     __logStr,
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH,
     &__logStrLen
   );
+  PRINT_SUCCESS("8");
 
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("RtlStringCchLengthW", __resStatus);
     return;
   }
+  PRINT_SUCCESS("9");
 
   __logStrLen *= sizeof(__logStr[0]);
 
@@ -441,6 +450,8 @@ FSFltLoadImageNotify(
     NULL,
     NULL
   );
+  PRINT_STATUS("10 NTSTATUS: 0x%08x", __resStatus);
 
-  PRINT_STATUS("NTSTATUS: 0x%08x / Bytes: %llu / Message: %ws", __resStatus, __logStrLen, __logStr);
+  PRINT_STATUS("Bytes: %llu / Message: %ws", __logStrLen, __logStr);
+  PRINT_SUCCESS("11");
 }
