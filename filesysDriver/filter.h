@@ -5,6 +5,10 @@
 #include <dontuse.h>
 #include <suppress.h>
 
+#ifndef _DRIVER
+#define _DRIVER
+#endif // !_DRIVER
+
 #include "../file_sys_filter.h"
 #include "rules_list.h"
   
@@ -114,12 +118,12 @@ FSFltDeviceControl(
 
 NTSTATUS
 FSFltSetLoadImageNotify(
-  _Inout_ ULONG* __result
+  _Inout_ LONG* __result
 );
 
 NTSTATUS
 FSFltRemoveLoadImageNotify(
-  _Inout_ ULONG* __result
+  _Inout_ LONG* __result
 );
 
 VOID

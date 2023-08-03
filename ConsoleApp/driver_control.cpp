@@ -1,202 +1,243 @@
+#ifndef _CONSOLE_APP
+#define _CONSOLE_APP
+#endif // !_CONSOLE_APP
+
 #include "driver_control.h"
+#include "../file_sys_filter.h"
 
 #include <iostream>
 #include <iomanip>
 #include <windows.h>
 #include <setupapi.h>
 
-void
+DriverControl::Result
 DriverControl::
 Start() {
-  BOOL __res = FALSE;
+  DriverControl::Result __res;
+  BOOL __bRes;
   SC_HANDLE __hService = NULL;
-  __res = this->_GetServiceHandle(&__hService);
-  if (__res == FALSE) {
-    this->_PrintError("_GetServiceHandle", GetLastError());
-    return;
-  }
+
+  __res = _GetServiceHandle(&__hService);
+
+  if (!FSFLT_SUCCESS(__res._internalErrCode)) { return __res; }
   
-  __res = StartServiceW(__hService, 0, NULL);
-  if (__res == FALSE) {
-    if (GetLastError() == ERROR_SERVICE_ALREADY_RUNNING) {
-      std::cout << "Service already running" << std::endl;
-    } else {
-      _PrintError("StartServiceW", GetLastError());
-      CloseServiceHandle(__hService);
-      return;
-    }
+  __bRes = StartServiceW(__hService, 0, NULL);
+
+  if (__bRes == FALSE) {
+    __res._winFuncName = "StartServiceW";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_START_SERVICE;
+
+    CloseServiceHandle(__hService);
+
+    return __res;
   }
+
   __res = _WaitForServiceState(__hService, SERVICE_RUNNING);
-  if (__res  == FALSE) { _PrintError("_WaitForServiceState", GetLastError()); }
+
+  if (!FSFLT_SUCCESS(__res._internalErrCode)) { return __res; }
 
   CloseServiceHandle(__hService);
-  return;
+  
+  __res._internalErrCode = FSFLT_ERROR_SUCCESS;
+  __res._winErrCode = ERROR_SUCCESS;
+  return __res;
 }
 
-void
+DriverControl::Result
 DriverControl::
 Stop() {
-  BOOL __res = FALSE;
+  DriverControl::Result __res;
+  BOOL __bRes;
   SC_HANDLE __hService = NULL;
   SERVICE_STATUS __serviceStatus;
-  __res = this->_GetServiceHandle(&__hService);
-  if (__res == FALSE) {
-    this->_PrintError("_GetServiceHandle", GetLastError());
-    return;
-  }
-  __res = ControlService(__hService, SERVICE_CONTROL_STOP, &__serviceStatus);
-  if (__res == FALSE) {
-    if (GetLastError() == ERROR_SERVICE_NOT_ACTIVE) {
-      std::cout << "Service already has been stooped" << std::endl;
-    } else {
-      _PrintError("ControlService", GetLastError());
-      CloseServiceHandle(__hService);
-      return;
-    }
+
+  __res = _GetServiceHandle(&__hService);
+
+  if (!FSFLT_SUCCESS(__res._internalErrCode)) { return __res; }
+
+  __bRes = ControlService(__hService, SERVICE_CONTROL_STOP, &__serviceStatus);
+
+  if (__bRes == FALSE) {
+    __res._winFuncName = "ControlService";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_STOP_SERVICE;
+
+    CloseServiceHandle(__hService);
+
+    return __res;
   }
   __res = _WaitForServiceState(__hService, SERVICE_STOPPED);
-  if (__res  == FALSE) { _PrintError("_WaitForServiceState", GetLastError()); }
+
   CloseServiceHandle(__hService);
-  return;
+
+  return __res;;
 }
 
-void
+DriverControl::Result
 DriverControl::
 Install() {
-  BOOL __res = FALSE;
+  DriverControl::Result __res;
   SC_HANDLE __hService = NULL;
-  __res = this->_GetServiceHandle(&__hService);
-  if (__res == TRUE) {
-    std::cout << "Driver has been already installed!\n";
+  std::wstring __relPath;
+  std::wstring __fullPath;
+
+  __res = _GetServiceHandle(&__hService);
+
+  if (FSFLT_SUCCESS(__res._internalErrCode)) {
+    __res._internalErrCode =
+      FSFLT_DRIVER_CONTROL_ERROR_SERVICE_ALREADY_INSTALLED;
+    __res._winErrCode = ERROR_SUCCESS;
+
     CloseServiceHandle(__hService);
-    return;
+
+    return __res;
   }
 
-  std::wstring __path(L"..\\x64");
+  __relPath = L"..\\x64";
 #ifdef _DEBUG
-  __path += L"\\Debug";
+  __relPath += L"\\Debug";
 #else
-  __path += L"\\Release";
+  __relPath += L"\\Release";
 #endif // DEBUG
-  __path += L"\\" DRIVER_NAME "\\" DRIVER_NAME ".inf";            
-  std::wcout << __path << std::endl;
-  DWORD __length = 0;
-  WCHAR* __fullPath = nullptr;
+  __relPath += L"\\" DRIVER_NAME "\\" DRIVER_NAME ".inf";            
 
-  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
-  if (__length == 0) {
-    _PrintError("GetFullPathNameW", GetLastError());
-    return;
-  }
-  __fullPath = new(std::nothrow) WCHAR[__length + 1];
-  if (__fullPath == nullptr) {
-    _PrintError("Memory allocation", 0);
-    return;
-  }
-  std::memset(__fullPath, 0x00, (__length + 1) * sizeof(WCHAR));
-  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
-  if (__length == 0) {
-    _PrintError("GetFullPathNameW", GetLastError());
-    delete[] __fullPath;
-    return;
-  }
+  __res = _GetFullPath(__relPath, __fullPath);
+
+  if (!FSFLT_SUCCESS(__res._internalErrCode)) { return __res; }
 
   std::wstring __cmdLine(L"DefaultInstall 132 ");
   __cmdLine += __fullPath;
-  delete[] __fullPath;
 
   InstallHinfSectionW(NULL, NULL, __cmdLine.data(), 0);
 
-  return;
+  __res._winErrCode = ERROR_SUCCESS;
+  __res._internalErrCode = FSFLT_ERROR_SUCCESS;
+
+  return __res;
 }
 
-void
+DriverControl::Result
 DriverControl::
 Uninstall() {
-  BOOL __res = FALSE;
+  DriverControl::Result __res;
   SC_HANDLE __hService = NULL;
-  __res = this->_GetServiceHandle(&__hService);
-  if (__res == FALSE) {
-    this->_PrintError("_GetServiceHandle", GetLastError());
-    return;
+  std::wstring __relPath;
+  std::wstring __fullPath;
+
+  __res = _GetServiceHandle(&__hService);
+
+  if (!FSFLT_SUCCESS(__res._internalErrCode)) {
+    __res._internalErrCode
+      = FSFLT_DRIVER_CONTROL_ERROR_SERVICE_ALREADY_UNINSTALLED;
+    __res._winErrCode = ERROR_SUCCESS;
+
+    return __res;
   }
+
   CloseServiceHandle(__hService);
 
-  std::wstring __path(L"..\\x64");
+  __relPath = L"..\\x64";
 #ifdef _DEBUG
-  __path += L"\\Debug";
+  __relPath += L"\\Debug";
 #else
-  __path += L"\\Release";
+  __relPath += L"\\Release";
 #endif // DEBUG
-  __path += L"\\" DRIVER_NAME "\\" DRIVER_NAME ".inf";            
-  DWORD __length = 0;
-  WCHAR* __fullPath = nullptr;
+  __relPath += L"\\" DRIVER_NAME "\\" DRIVER_NAME ".inf";            
 
-  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
-  if (__length == 0) {
-    _PrintError("GetFullPathNameW", GetLastError());
-    return;
-  }
-  __fullPath = new(std::nothrow) WCHAR[__length + 1];
-  if (__fullPath == nullptr) {
-    _PrintError("Memory allocation", 0);
-    return;
-  }
-  std::memset(__fullPath, 0x00, (__length + 1) * sizeof(WCHAR));
-  __length = GetFullPathNameW(__path.data(), __length, __fullPath, nullptr);
-  if (__length == 0) {
-    _PrintError("GetFullPathNameW", GetLastError());
-    delete[] __fullPath;
-    return;
-  }
+  __res = _GetFullPath(__relPath, __fullPath);
+
+  if (!FSFLT_SUCCESS(__res._internalErrCode)) { return __res; }
 
   std::wstring __cmdLine(L"DefaultUninstall 132 ");
   __cmdLine += __fullPath;
-  delete[] __fullPath;
 
   InstallHinfSectionW(NULL, NULL, __cmdLine.data(), 0);
 
-  return;
+  __res._winErrCode = ERROR_SUCCESS;
+  __res._internalErrCode = FSFLT_ERROR_SUCCESS;
+
+  return __res;
 }
 
-void
+DriverControl::Result
 DriverControl::
-EnableLoadImageNotify() { this->_SendIOCTLCode(IOCTL_SET_LOAD_IMAGE); }
+EnableLoadImageNotify() {
+  DRIVER_IO __ioctlInfo;
+  return _SendIOCTLCode(IOCTL_SET_LOAD_IMAGE, &__ioctlInfo);
+}
 
-void
+DriverControl::Result
 DriverControl::
-DisableLoadImageNotify() { this->_SendIOCTLCode(IOCTL_REMOVE_LOAD_IMAGE); }
+DisableLoadImageNotify() {
+  DRIVER_IO __ioctlInfo;
+  return _SendIOCTLCode(IOCTL_REMOVE_LOAD_IMAGE, &__ioctlInfo);
+}
 
-void
+DriverControl::Result
 DriverControl::
-Update() { this->_SendIOCTLCode(IOCTL_UPDATE_RULES); }
+Update() { 
+  DRIVER_IO __ioctlInfo;
 
-BOOL
+  swprintf(__ioctlInfo._type._ruleAddInfo._procName, PROCESS_BUFFER_SIZE, L"test.exe");
+  swprintf(__ioctlInfo._type._ruleAddInfo._fileName, FILE_BUFFER_SIZE, L"test.txt");
+  __ioctlInfo._type._ruleAddInfo._accessMask = MASK_ALLOW_READ | MASK_ALLOW_WRITE;
+
+
+  return _SendIOCTLCode(IOCTL_ADD_RULE, &__ioctlInfo);
+}
+
+DriverControl::Result
 DriverControl::
 _GetServiceHandle(SC_HANDLE* __hService) {
-  BOOL __res = FALSE;
+  DriverControl::Result __res;
   SC_HANDLE __hSCM = NULL;
   *__hService = NULL;
 
   __hSCM = OpenSCManagerW(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+
   if (__hSCM == NULL) {
-    _PrintError("OpenSCManagerW", GetLastError());
+    __res._winFuncName = "OpenSCManagerW";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_OPEN_SCM;
     return __res;
   }
+
   *__hService = OpenServiceW(__hSCM, DRIVER_NAME, SERVICE_ALL_ACCESS);
-  if (*__hService == NULL) { _PrintError("OpenServiceW", GetLastError()); }
-  else { __res = TRUE; }
+
+  if (*__hService == NULL) {
+    __res._winFuncName = "OpenServiceW";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_OPEN_SERVICE;
+
+    CloseServiceHandle(__hSCM);
+
+    return __res;
+  }
+
+  __res._internalErrCode = FSFLT_ERROR_SUCCESS;
+  __res._winErrCode = ERROR_SUCCESS;
+
   CloseServiceHandle(__hSCM);
+
   return __res;
 }
 
-void
+DriverControl::Result
 DriverControl::
-_SendIOCTLCode(DWORD __ioctlCode) {
+_SendIOCTLCode(DWORD __ioctlCode, PDRIVER_IO __drvIo) {
+  DriverControl::Result __res;
+  BOOL __bRes;
   HANDLE __hDriver = NULL;
-  BOOL __res = FALSE;
-  DRIVER_IO __output = { 0 };
-  DWORD __bytesRet = 0;
+  DWORD __bytesRet;
+
+  if (__drvIo == NULL) {
+    __res._winErrCode = ERROR_INVALID_PARAMETER;
+    __res._winFuncName = "IsNull";
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_INVALID_PARAMETER;
+
+    return __res;
+  }
 
   __hDriver = CreateFileW(
     DRIVER_USERMODE_NAME,
@@ -208,68 +249,135 @@ _SendIOCTLCode(DWORD __ioctlCode) {
     NULL
   );
   if (__hDriver == INVALID_HANDLE_VALUE) {
-    _PrintError("CreateFileW", GetLastError());
-    return;
+    __res._winFuncName = "CreateFileW";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_OPEN_DRIVER_BY_LINK;
+
+    return __res;
   }
-  __res = DeviceIoControl(
+
+  __bRes = DeviceIoControl(
     __hDriver,
     __ioctlCode,
     NULL,
     0,
-    &__output,
-    sizeof(__output),
+    __drvIo,
+    sizeof(DRIVER_IO),
     &__bytesRet,
     NULL
   );
-  if (__res == FALSE) {
-    _PrintError("DeviceIoControl", GetLastError());
-    CloseHandle(__hDriver);
-    return;
-  }
-  std::cout << "Driver returns: " << std::hex << __output._resVal << std::endl;
-  CloseHandle(__hDriver);
-}
 
-BOOL
-DriverControl::
-_WaitForServiceState(SC_HANDLE __hService, DWORD __serviceState) {
-  BOOL __res = FALSE;
-  DWORD __currState;
-  while (TRUE) {
-    __res = _GetServiceState(__hService, &__currState);
-    if (__res == FALSE) {
-      _PrintError("_GetServiceState", GetLastError());
-      break;
-    } else if (__currState == __serviceState) { break; }
-    Sleep(500);
+  if (__bRes == FALSE) {
+    __res._winFuncName = "DeviceIoControl";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_SEND_IOCTL;
+
+    CloseHandle(__hDriver);
+
+    return __res;
   }
+
+  __res._winErrCode = ERROR_SUCCESS;
+  __res._internalErrCode = __drvIo->_result;
+
+  CloseHandle(__hDriver);
+
   return __res;
 }
 
-BOOL
+DriverControl::Result
+DriverControl::
+_WaitForServiceState(SC_HANDLE __hService, DWORD __serviceState) {
+  DriverControl::Result __res;
+  DWORD __currState;
+
+  while (TRUE) {
+    __res = _GetServiceState(__hService, &__currState);
+
+    if (!FSFLT_SUCCESS(__res._internalErrCode)) { break; }
+    else if (__currState == __serviceState) { break; }
+
+    Sleep(500);
+  }
+
+  return __res;
+}
+
+DriverControl::Result
 DriverControl::
 _GetServiceState(SC_HANDLE __hService, DWORD* __currState) {
+
+  DriverControl::Result __res;
+  BOOL __bRes;
   SERVICE_STATUS_PROCESS __serviceStatus;
-  BOOL __res = FALSE;
   DWORD __bytesNeeded;
 
-  __res = QueryServiceStatusEx(
+  __bRes = QueryServiceStatusEx(
     __hService,
     SC_STATUS_PROCESS_INFO,
     reinterpret_cast<LPBYTE>(&__serviceStatus),
     sizeof(__serviceStatus),
     &__bytesNeeded
   );
-  if (__res == FALSE) { _PrintError("QueryServiceStatusEx", GetLastError()); }
-  else { *__currState = __serviceStatus.dwCurrentState; }
+
+  if (__bRes == FALSE) {
+    __res._winFuncName = "QueryServiceStatusEx";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_QUERY_SERVICE_STATE;
+  } else { *__currState = __serviceStatus.dwCurrentState; }
+
+  __res._winErrCode = ERROR_SUCCESS;
+  __res._internalErrCode = FSFLT_ERROR_SUCCESS;
+
   return __res;
 }
 
-inline
-void
+DriverControl::Result
 DriverControl::
-_PrintError(std::string&& __funcName, DWORD __errCode) {
-  std::cout << __funcName << " failed with: 0x";
-  std::cout << std::setw(8) << std::setfill('0') << std::right
-    << std::hex << __errCode << '\n';
+_GetFullPath(std::wstring& __relPath, std::wstring& __fullPath) {
+  DriverControl::Result __res;
+  DWORD __length = 0;
+  WCHAR* __tmpPath = nullptr;
+
+  __length = GetFullPathNameW(__relPath.data(), __length, __tmpPath, nullptr);
+
+  if (__length == 0) {
+    __res._winFuncName = "GetFullPathNameW";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_GET_FULL_PATH;
+
+    return __res;
+  }
+
+  __tmpPath = new(std::nothrow) WCHAR[__length + 1];
+
+  if (__tmpPath == nullptr) {
+    __res._winFuncName = "new";
+    __res._winErrCode = ERROR_SUCCESS;
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_MEMORY_ALLOC;
+
+    return __res;
+  }
+  
+  std::memset(__tmpPath, 0x00, (__length + 1) * sizeof(WCHAR));
+
+  __length = GetFullPathNameW(__relPath.data(), __length, __tmpPath, nullptr);
+
+  if (__length == 0) {
+    __res._winFuncName = "GetFullPathNameW";
+    __res._winErrCode = GetLastError();
+    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_GET_FULL_PATH;
+
+    delete[] __tmpPath;
+
+    return __res;
+  }
+
+  __fullPath = __tmpPath;
+  delete[] __tmpPath;
+
+  __res._winErrCode = ERROR_SUCCESS;
+  __res._internalErrCode = FSFLT_ERROR_SUCCESS;
+
+  return __res;
 }

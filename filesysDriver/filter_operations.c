@@ -1,5 +1,7 @@
 #include "filter.h"
 
+#include <ntstrsafe.h>
+
 #ifdef ALLOC_PRAGMA
 
 #pragma alloc_text(PAGE, FSFltCreateCDO)
@@ -15,7 +17,7 @@
 #endif // ALLOC_PRAGMA
 
 NTSTATUS
-_Function_class_(DRIVER_INITIALIZE)
+_Function_class_(FSFLT_DRIVER_INITIALIZE)
 FSFltCreateCDO(
   _Inout_ PDRIVER_OBJECT __driverObj
 ) {
@@ -234,7 +236,7 @@ FSFltDeviceControl(
 ) {
 
   NTSTATUS __resStatus = STATUS_SUCCESS;
-  ULONG __result = DRIVER_ERROR_SUCCESS;
+  LONG __result = FSFLT_ERROR_SUCCESS;
   ULONG __ioctlCode;
   PIO_STACK_LOCATION __irpStack;
   PDRIVER_IO __ioctlOutput;
@@ -253,7 +255,6 @@ FSFltDeviceControl(
   }
 
   __ioctlOutput = (PDRIVER_IO)__irp->AssociatedIrp.SystemBuffer;
-  PRINT_STATUS("IOCTL CODE: 0x%08x\n", __ioctlCode);
 
   switch (__ioctlCode) {
     case IOCTL_SET_LOAD_IMAGE:
@@ -262,30 +263,41 @@ FSFltDeviceControl(
     case IOCTL_REMOVE_LOAD_IMAGE:
       __resStatus = FSFltRemoveLoadImageNotify(&__result);
       break;
+    case IOCTL_ADD_RULE:
+      PRINT_STATUS(
+        "Process: %ws; File: %ws; Mask: 0x%08x\n",
+        __ioctlOutput->_type._ruleAddInfo._procName,
+        __ioctlOutput->_type._ruleAddInfo._fileName,
+        __ioctlOutput->_type._ruleAddInfo._accessMask
+      );
+      break;
+    case IOCTL_DEL_RULE:
+      PRINT_STATUS("Rule #%d", __ioctlOutput->_type._ruleDelNum);
+      break;
     default:
       __resStatus = STATUS_INVALID_PARAMETER;
   }
 
-  __ioctlOutput->_resVal = __result;
+  __ioctlOutput->_result = __result;
 
   return __resStatus;
 }
 
 NTSTATUS
 FSFltSetLoadImageNotify(
-  _Inout_ ULONG* __result
+  _Inout_ LONG* __result
 ) {
   NTSTATUS __resStatus = STATUS_SUCCESS;
   UNICODE_STRING __logFileName;
   OBJECT_ATTRIBUTES __objAttrs;
   IO_STATUS_BLOCK __ioStatusBlock;
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET)) {
-    *__result = DRIVER_ERROR_LOAD_IMAGE_ALREADY_SET;
+    *__result = FSFLT_DRIVER_ERROR_LOAD_IMAGE_ALREADY_SET;
     return STATUS_INVALID_PARAMETER;
   }
 
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED)) {
-    *__result = DRIVER_ERROR_LOG_FILE_ALREADY_OPENED;
+    *__result = FSFLT_DRIVER_ERROR_LOG_FILE_ALREADY_OPENED;
     return STATUS_INVALID_PARAMETER;
   }
 
@@ -316,7 +328,7 @@ FSFltSetLoadImageNotify(
 
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("ZwCreateFile", __resStatus);
-    *__result = DRIVER_ERROR_LOG_FILE_CREATE_FAILED;
+    *__result = FSFLT_DRIVER_ERROR_LOG_FILE_CREATE_FAILED;
     return __resStatus;
   }
 
@@ -328,7 +340,7 @@ FSFltSetLoadImageNotify(
     ZwClose(_global._filterLogFile);
     ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED);
     PRINT_ERROR("PsSetLoadImageNotifyRoutine", __resStatus);
-    *__result = DRIVER_ERROR_SET_LOAD_IMAGE;
+    *__result = FSFLT_DRIVER_ERROR_SET_LOAD_IMAGE;
     return __resStatus;
   }
 
@@ -336,22 +348,22 @@ FSFltSetLoadImageNotify(
 
   PRINT_SUCCESS("PsSetLoadImageNotifyRoutine");
 
-  *__result = DRIVER_ERROR_SUCCESS;
+  *__result = FSFLT_ERROR_SUCCESS;
 
   return __resStatus;
 }
 
 NTSTATUS
 FSFltRemoveLoadImageNotify(
-  _Inout_ ULONG* __result
+  _Inout_ LONG* __result
 ) {
   NTSTATUS __resStatus = STATUS_SUCCESS;
   if (!FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET)) {
-    *__result = DRIVER_ERROR_LOAD_IMAGE_ALREADY_REMOVED;
+    *__result = FSFLT_DRIVER_ERROR_LOAD_IMAGE_ALREADY_REMOVED;
     return STATUS_INVALID_PARAMETER;
   }
   if (!FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED)) {
-    *__result = DRIVER_ERROR_LOG_FILE_NOT_OPENED;
+    *__result = FSFLT_DRIVER_ERROR_LOG_FILE_NOT_OPENED;
     return STATUS_INVALID_PARAMETER;
   }
 
@@ -359,7 +371,7 @@ FSFltRemoveLoadImageNotify(
 
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("PsRemoveLoadImageNotifyRoutine", __resStatus);
-    *__result = DRIVER_ERROR_LOAD_IMAGE_REMOVE;
+    *__result = FSFLT_DRIVER_ERROR_LOAD_IMAGE_REMOVE;
     return __resStatus;
   }
   
@@ -370,7 +382,7 @@ FSFltRemoveLoadImageNotify(
 
   PRINT_SUCCESS("PsRemoveLoadImageNotifyRoutine");
 
-  *__result = DRIVER_ERROR_SUCCESS;
+  *__result = FSFLT_ERROR_SUCCESS;
   return __resStatus;
 }
 

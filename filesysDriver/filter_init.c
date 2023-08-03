@@ -82,7 +82,7 @@ FSFltUnload(
   _In_ FLT_FILTER_UNLOAD_FLAGS __flags
 ) {
   NTSTATUS __resStatus = STATUS_SUCCESS;
-  ULONG __result = DRIVER_ERROR_SUCCESS;
+  LONG __result = FSFLT_ERROR_SUCCESS;
 
   UNREFERENCED_PARAMETER(__flags);
 

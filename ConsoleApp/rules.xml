@@ -1,0 +1,10 @@
+<entry>
+  <file>test.txt</file>
+  <process>cmd.exe</process>
+  <permissions>rw</permissions>
+</entry>
+<entry>
+  <file>test.txt</file>
+  <process>cmd.exe</process>
+  <permissions>rW</permissions>
+</entry>
