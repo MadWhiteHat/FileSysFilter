@@ -259,8 +259,8 @@ _SendIOCTLCode(DWORD __ioctlCode, PDRIVER_IO __drvIo) {
   __bRes = DeviceIoControl(
     __hDriver,
     __ioctlCode,
-    NULL,
-    0,
+    __drvIo,
+    sizeof(DRIVER_IO),
     __drvIo,
     sizeof(DRIVER_IO),
     &__bytesRet,
