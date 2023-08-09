@@ -159,7 +159,12 @@ DelAce(
     return STATUS_INVALID_PARAMETER_2;
   }
 
-  if (__node->_nextAce == NULL) {
+  if (*__head == __node) {
+    __tmpNode = *__head;
+    *__head = (*__head)->_nextAce;
+    
+    ExFreePoolWithTag(__tmpNode, __tmpNode->_allocTag);
+  } else if (__node->_nextAce == NULL) {
     __tmpNode = *__head;
     
     while (__tmpNode->_nextAce != __node) {
@@ -334,7 +339,12 @@ DelAcl(
     return STATUS_INVALID_PARAMETER_2;
   }
 
-  if (__node->_nextAcl == NULL) {
+  if (*__head == __node) {
+    __tmpNode = *__head;
+    *__head = (*__head)->_nextAcl;
+    
+    ExFreePoolWithTag(__tmpNode, __tmpNode->_allocTag);
+  } else if (__node->_nextAcl == NULL) {
     __tmpNode = *__head;
 
     while (__tmpNode->_nextAcl != __node) {
