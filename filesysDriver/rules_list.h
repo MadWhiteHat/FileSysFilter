@@ -19,7 +19,7 @@ typedef struct _RULES_ACL {
   PRULES_ACE _aceList;
   ULONG _aceCnt;
   ULONG _allocTag;
-  struct RULES_ACL* _nextAcl;
+  struct _RULES_ACL* _nextAcl;
 } RULES_ACL, *PRULES_ACL;
 
 typedef struct _RULES_LIST {
@@ -53,7 +53,7 @@ DelAce(
 NTSTATUS
 DelAllAces(
   _Inout_ PRULES_ACE* __head,
-  PLONG __result
+  _Inout_ PLONG __result
 );
 
 VOID
@@ -66,7 +66,6 @@ NTSTATUS
 AddAcl(
   _Inout_ PRULES_ACL* __head,
   _In_ LPCWSTR __fileName,
-  _In_ ULONG __accessMask,
   _Inout_ PLONG __result
 );
 
@@ -80,7 +79,7 @@ DelAcl(
 NTSTATUS
 DelAllAcls(
   _Inout_ PRULES_ACL* __head,
-  PLONG __result
+  _Inout_ PLONG __result
 );
 
 #endif // !_MY_LIST_H

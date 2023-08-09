@@ -177,8 +177,8 @@ DelAce(
     __tmpNode = __node->_nextAce;
     __tmpTag = __node->_allocTag;
 
-    // Copy next node, but safe tag of current node
-    RtlCopyMemory(__node, __tmpNode, sizeof(__tmpNode));
+    // Copy next node, but keep tag of the current node
+    RtlCopyMemory(__node, __tmpNode, sizeof(*__tmpNode));
     __node->_allocTag = __tmpTag;
 
     // Free next node
@@ -256,7 +256,7 @@ AddAcl(
   PRULES_ACL __newNode = NULL;
   PRULES_ACL __tmpNode = NULL;
   ULONG __allocTag;
-  size_t __procFileLen;
+  size_t __fileNameLen;
 
   PAGED_CODE();
 
@@ -264,6 +264,53 @@ AddAcl(
     *__result = FSFLT_DRIVER_ERROR_ADD_ACL_INVALID_FILE_NAME;
     return STATUS_INVALID_PARAMETER_2;
   }
+
+  __allocTag = _global._rulesList._curTag;
+  __newNode = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(RULES_ACL), __allocTag);
+
+  if (__newNode == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_ADD_ACL_MEMORY_ALLOC;
+    return STATUS_INSUFFICIENT_RESOURCES;
+  }
+
+  RtlSecureZeroMemory(__newNode, sizeof(RULES_ACL));
+
+  __res = RtlStringCchLengthW(__fileName, FILE_BUFFER_SIZE, &__fileNameLen);
+
+  if (!NT_SUCCESS(__res)) {
+    ExFreePoolWithTag(__newNode, __allocTag);
+    *__result = FSFLT_DRIVER_ERROR_ADD_ACL_GET_FILE_NAME_LENGTH;
+      return __res;
+  }
+
+  __res = RtlStringCchCopyNW(
+    __newNode->_fileName,
+    FILE_BUFFER_SIZE,
+    __fileName,
+    __fileNameLen
+  );
+
+  if (!NT_SUCCESS(__res)) {
+    *__result = FSFLT_DRIVER_ERROR_ADD_ACL_COPY_FILE_NAME;
+    return __res;
+  }
+
+  __newNode->_aceList = NULL;
+  __newNode->_aceCnt = 0;
+  __newNode->_allocTag = __allocTag;
+  __newNode->_nextAcl = NULL;
+
+  if (*__head == NULL) { *__head = __newNode; }
+  else {
+    __tmpNode = *__head;
+    while (__tmpNode->_nextAcl != NULL) { __tmpNode = __tmpNode->_nextAcl; }
+    __tmpNode->_nextAcl = __newNode;
+  }
+
+  ++(_global._rulesList._curTag);
+
+  *__result = FSFLT_ERROR_SUCCESS;
+  return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -271,13 +318,71 @@ DelAcl(
   _Inout_ PRULES_ACL* __head,
   _In_ PRULES_ACL __node,
   _Inout_ PLONG __result
-);
+) {
+  ULONG __tmpTag;
+  PRULES_ACL __tmpNode = NULL;
+
+  PAGED_CODE();
+
+  if (*__head == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_ACL_INVALID_HEAD_PTR;
+    return STATUS_INVALID_PARAMETER_1;
+  }
+
+  if (__node == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_ACL_INVALID_NODE_PTR;
+    return STATUS_INVALID_PARAMETER_2;
+  }
+
+  if (__node->_nextAcl == NULL) {
+    __tmpNode = *__head;
+
+    while (__tmpNode->_nextAcl != __node) {
+      if (__tmpNode->_nextAcl == NULL) {
+        *__result = FSFLT_DRIVER_ERROR_DEL_ACL_INVALID_LIST;
+        return STATUS_INVALID_PARAMETER_2;
+      }
+
+      __tmpNode = __tmpNode->_nextAcl;
+    }
+
+    __tmpNode->_nextAcl = NULL;
+
+    ExFreePoolWithTag(__node, __node->_allocTag);
+  } else {
+    __tmpNode = __node->_nextAcl;
+    __tmpTag = __node->_allocTag;
+
+    // Copy next node, but keep tag of the current node
+    RtlCopyMemory(__node, __tmpNode, sizeof(*__tmpNode));
+    __node->_allocTag = __tmpTag;
+
+    // Free next node
+    ExFreePoolWithTag(__tmpNode, __tmpNode->_allocTag);
+  }
+
+  *__result = FSFLT_ERROR_SUCCESS;
+  return STATUS_SUCCESS;
+}
 
 NTSTATUS
 DelAllAcls(
   _Inout_ PRULES_ACL* __head,
-  PLONG __result
-);
+  _Inout_ PLONG __result
+) {
+  NTSTATUS __res;
+
+  PAGED_CODE();
+
+  while (*__head != NULL) {
+    __res = DelAcl(__head, *__head, __result);
+    
+    if (!NT_SUCCESS(__res)) { return __res; }
+  }
+
+  *__result = FSFLT_ERROR_SUCCESS;
+  return STATUS_SUCCESS;
+}
 
 BOOLEAN
 _CompareStrings(
