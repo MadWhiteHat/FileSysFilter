@@ -42,8 +42,8 @@ DriverEntry(
   RtlSecureZeroMemory(&_global, sizeof(_global));
 
   _global._filterDriverObject = __driverObj;
-  _global._currTag = START_TAG;
-
+  _global._rulesList._curTag = START_TAG;
+  
   __resStatus = FltRegisterFilter(
     __driverObj,
     &__filterRegistration,

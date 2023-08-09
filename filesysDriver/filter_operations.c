@@ -241,6 +241,7 @@ FSFltDeviceControl(
   PIO_STACK_LOCATION __irpStack;
   PDRIVER_IO __ioctlOutput;
   ULONG __ioctlOutputBufferLen;
+  static PRULES_ACE __head = NULL;
 
   PAGED_CODE();
 
@@ -264,15 +265,12 @@ FSFltDeviceControl(
       __resStatus = FSFltRemoveLoadImageNotify(&__result);
       break;
     case IOCTL_ADD_RULE:
-      PRINT_STATUS(
-        "Process: %ws; File: %ws; Mask: 0x%08x\n",
-        __ioctlOutput->_type._ruleAddInfo._procName,
-        __ioctlOutput->_type._ruleAddInfo._fileName,
-        __ioctlOutput->_type._ruleAddInfo._accessMask
-      );
+      __resStatus = AddAce(&__head, L"Test1", 3, &__result);
+      PrintAceList(__head);
       break;
     case IOCTL_DEL_RULE:
-      PRINT_STATUS("Rule #%d", __ioctlOutput->_type._ruleDelNum);
+      __resStatus = DelAce(&__head, __head, &__result);
+      PrintAceList(__head);
       break;
     default:
       __resStatus = STATUS_INVALID_PARAMETER;
@@ -406,17 +404,12 @@ FSFltLoadImageNotify(
   PAGED_CODE();
 
   if (__fullImageName == NULL || __imageInfo == NULL) { return; }
-  PRINT_SUCCESS("1");
 
   RtlSecureZeroMemory(__logStr, DRIVER_LOAD_IMAGE_BUFFER_LENGTH);
-  PRINT_SUCCESS("2");
 
   KeQuerySystemTime(&__systemTime);
-  PRINT_SUCCESS("3");
   ExSystemTimeToLocalTime(&__systemTime, &__localTime);
-  PRINT_SUCCESS("4");
   RtlTimeToTimeFields(&__localTime, &__timeFields);
-  PRINT_SUCCESS("5");
 
   __resStatus = RtlStringCchPrintfW(
     __logStr,
@@ -428,26 +421,22 @@ FSFltLoadImageNotify(
     __processId, __fullImageName,
     __imageInfo->ImageBase, __imageInfo->ImageSize
   );
-  PRINT_SUCCESS("6");
 
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("RtlStringCchPrintfW", __resStatus);
     return;
   }
-  PRINT_SUCCESS("7");
 
   __resStatus = RtlStringCchLengthW(
     __logStr,
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH,
     &__logStrLen
   );
-  PRINT_SUCCESS("8");
 
   if (!NT_SUCCESS(__resStatus)) {
     PRINT_ERROR("RtlStringCchLengthW", __resStatus);
     return;
   }
-  PRINT_SUCCESS("9");
 
   __logStrLen *= sizeof(__logStr[0]);
 
@@ -462,8 +451,6 @@ FSFltLoadImageNotify(
     NULL,
     NULL
   );
-  PRINT_STATUS("10 NTSTATUS: 0x%08x", __resStatus);
 
   PRINT_STATUS("Bytes: %llu / Message: %ws", __logStrLen, __logStr);
-  PRINT_SUCCESS("11");
 }

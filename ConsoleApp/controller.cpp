@@ -116,8 +116,23 @@ Controller::Run(VOID) {
         LOG_STATUS("LoadImage notifier has been successfully removed");
       }
     }
-    else if (!choice.compare(L"update")) {
-      _drv.Update();
+    else if (!choice.compare(L"addr")) {
+      __res = _drv.AddRule();
+      
+      if (!FSFLT_SUCCESS(__res._internalErrCode)) {
+        LOG_RESULT("Update", __res);
+      } else {
+        LOG_STATUS("Update has been successeded");
+      }
+    }
+    else if (!choice.compare(L"delr")) {
+      __res = _drv.DelRule();
+      
+      if (!FSFLT_SUCCESS(__res._internalErrCode)) {
+        LOG_RESULT("Update", __res);
+      } else {
+        LOG_STATUS("Update has been successeded");
+      }
     }
     else { continue; }
     system("pause");

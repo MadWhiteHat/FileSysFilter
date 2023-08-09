@@ -11,7 +11,7 @@
 
 #include "../file_sys_filter.h"
 #include "rules_list.h"
-  
+
 #pragma prefast( \
   disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, \
   "Not valid for kernel mode drivers" \
@@ -57,8 +57,7 @@ typedef struct _FILTER_GLOBAL_DATA {
   PDEVICE_OBJECT _filterControlDeviceObject;
   ULONG _filterFlags;
   HANDLE _filterLogFile;
-  ULONG _currTag;
-  MyRuleList* _myRuleList;
+  RULES_LIST _rulesList;
 } FILTER_GLOBAL_DATA, *PFILTER_GLOBAL_DATA;
 
 extern FILTER_GLOBAL_DATA _global;
@@ -118,12 +117,12 @@ FSFltDeviceControl(
 
 NTSTATUS
 FSFltSetLoadImageNotify(
-  _Inout_ LONG* __result
+  _Inout_ PLONG __result
 );
 
 NTSTATUS
 FSFltRemoveLoadImageNotify(
-  _Inout_ LONG* __result
+  _Inout_ PLONG __result
 );
 
 VOID

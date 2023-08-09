@@ -176,15 +176,18 @@ DisableLoadImageNotify() {
 
 DriverControl::Result
 DriverControl::
-Update() { 
+AddRule() { 
   DRIVER_IO __ioctlInfo;
 
-  swprintf(__ioctlInfo._type._ruleAddInfo._procName, PROCESS_BUFFER_SIZE, L"test.exe");
-  swprintf(__ioctlInfo._type._ruleAddInfo._fileName, FILE_BUFFER_SIZE, L"test.txt");
-  __ioctlInfo._type._ruleAddInfo._accessMask = MASK_ALLOW_READ | MASK_ALLOW_WRITE;
-
-
   return _SendIOCTLCode(IOCTL_ADD_RULE, &__ioctlInfo);
+}
+
+DriverControl::Result
+DriverControl::
+DelRule() { 
+  DRIVER_IO __ioctlInfo;
+
+  return _SendIOCTLCode(IOCTL_DEL_RULE, &__ioctlInfo);
 }
 
 DriverControl::Result
@@ -267,18 +270,12 @@ _SendIOCTLCode(DWORD __ioctlCode, PDRIVER_IO __drvIo) {
     NULL
   );
 
+  __res._internalErrCode = __drvIo->_result;
+
   if (__bRes == FALSE) {
     __res._winFuncName = "DeviceIoControl";
     __res._winErrCode = GetLastError();
-    __res._internalErrCode = FSFLT_DRIVER_CONTROL_ERROR_SEND_IOCTL;
-
-    CloseHandle(__hDriver);
-
-    return __res;
-  }
-
-  __res._winErrCode = ERROR_SUCCESS;
-  __res._internalErrCode = __drvIo->_result;
+  } else { __res._winErrCode = ERROR_SUCCESS; }
 
   CloseHandle(__hDriver);
 

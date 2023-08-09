@@ -12,7 +12,7 @@ CatalogFile = filesysDriver.cat
 PnpLockDown = 1
 
 [DestinationDirs]
-DefaultDestDir          = 12
+DefaultDestDir             = 12
 FileSysDriver.DriverFiles  = 12
 
 ;*****************************************
@@ -31,8 +31,8 @@ AddService          = %ServiceName%,,FileSysDriver.Service
 ;*****************************************
 
 [DefaultUninstall.NT$ARCH$]
-DelFiles   = FileSysDriver.DriverFiles
-DelReg     = FileSysDriver.DelRegistry
+DelFiles        = FileSysDriver.DriverFiles
+DelReg          = FileSysDriver.DelRegistry
 
 [DefaultUninstall.NT$ARCH$.Services]
 DelService = %ServiceName%,0x200      ;Ensure service is stopped before deleting
@@ -100,5 +100,5 @@ DiskId1                 = "FileSysDriver Device Installation Disk"
 
 DefaultInstance         = "FileSysDriver"
 Instance1.Name          = "FileSysDriver"
-Instance1.Altitude = "389999"
-Instance1.Flags = 0x1 ; Supress automatic attachments
+Instance1.Altitude      = "389999"
+Instance1.Flags         = 0x1 ; Supress automatic attachments

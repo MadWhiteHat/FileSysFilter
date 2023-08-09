@@ -3,8 +3,6 @@
 #include "controller.h"
 
 int main() {
-  Controller __ctl;
-  __ctl.Run();
-  
+  Controller().Run();
   return 0;
 }

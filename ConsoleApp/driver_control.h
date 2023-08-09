@@ -26,7 +26,8 @@ public:
   //
   DriverControl::Result EnableLoadImageNotify();
   DriverControl::Result DisableLoadImageNotify();
-  DriverControl::Result Update();
+  DriverControl::Result AddRule();
+  DriverControl::Result DelRule();
 
 private:
   DriverControl::Result _GetServiceHandle(SC_HANDLE* __hService);

@@ -30,6 +30,9 @@
     <ClCompile Include="filter_operations.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="rules_list.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="filesysDriver.rc">
