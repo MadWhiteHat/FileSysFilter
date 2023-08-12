@@ -21,7 +21,7 @@ _Function_class_(FSFLT_DRIVER_INITIALIZE)
 FSFltCreateCDO(
   _Inout_ PDRIVER_OBJECT __driverObj
 ) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
   UNICODE_STRING __cdoName;
   UNICODE_STRING __symLink;
 
@@ -30,7 +30,7 @@ FSFltCreateCDO(
   RtlInitUnicodeString(&__cdoName, DRIVER_CDO_NAME);
   RtlInitUnicodeString(&__symLink, DRIVER_USERMODE_NAME);
   
-  __resStatus = IoCreateDevice(
+  __res = IoCreateDevice(
     __driverObj,
     0,
     &__cdoName,
@@ -40,23 +40,23 @@ FSFltCreateCDO(
     &_global._filterControlDeviceObject
   );
 
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("IoCreateDevice", __resStatus);
-    return __resStatus;
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("IoCreateDevice", __res);
+    return __res;
   } else { PRINT_SUCCESS("IoCreateDevice"); }
 
   for (ULONG i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; ++i) {
     __driverObj->MajorFunction[i] = FSFltMajorFunction;
   }
 
-  __resStatus = IoCreateSymbolicLink(&__symLink, &__cdoName);
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("IoCreateSymbolicLink", __resStatus);
+  __res = IoCreateSymbolicLink(&__symLink, &__cdoName);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("IoCreateSymbolicLink", __res);
     IoDeleteDevice(_global._filterControlDeviceObject);
-    return __resStatus;
+    return __res;
   } else { PRINT_SUCCESS("IoCreateSymbolicLink"); }
 
-  return __resStatus;
+  return __res;
 }
 
 VOID
@@ -77,7 +77,7 @@ FSFltMajorFunction(
   _Inout_ PIRP __irp
 ) {
 
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
   PIO_STACK_LOCATION __irpStack;
 
   UNREFERENCED_PARAMETER(__deviceObj);
@@ -91,12 +91,12 @@ FSFltMajorFunction(
   switch (__irpStack->MajorFunction) {
 
     case IRP_MJ_CREATE:
-      __resStatus = FSFltHandleCreate(__irp);
+      __res = FSFltHandleCreate(__irp);
 
-      __irp->IoStatus.Status = __resStatus;
-      if (!NT_SUCCESS(__resStatus)) {
+      __irp->IoStatus.Status = __res;
+      if (!NT_SUCCESS(__res)) {
         __irp->IoStatus.Information = 0;
-        PRINT_ERROR("FSFltHandleCreate", __resStatus);
+        PRINT_ERROR("FSFltHandleCreate", __res);
       } else {
         __irp->IoStatus.Information = FILE_OPENED;
         PRINT_SUCCESS("FSFltHandleCreate");
@@ -107,12 +107,12 @@ FSFltMajorFunction(
       break;
 
     case IRP_MJ_CLOSE:
-      __resStatus = FSFltHandleClose(__irp);
+      __res = FSFltHandleClose(__irp);
 
-      __irp->IoStatus.Status = __resStatus;
+      __irp->IoStatus.Status = __res;
       __irp->IoStatus.Information = 0;
-      if (!NT_SUCCESS(__resStatus)) {
-        PRINT_ERROR("FSFltHandleClose", __resStatus);
+      if (!NT_SUCCESS(__res)) {
+        PRINT_ERROR("FSFltHandleClose", __res);
       } else {
         PRINT_SUCCESS("FSFltHandleClose");
       }
@@ -134,14 +134,13 @@ FSFltMajorFunction(
       break;
 
     case IRP_MJ_DEVICE_CONTROL:
-      __resStatus = FSFltDeviceControl(__irp);
+      __res = FSFltDeviceControl(__irp);
 
-      __irp->IoStatus.Status = __resStatus;
-      if (!NT_SUCCESS(__resStatus)) {
-        __irp->IoStatus.Information = 0;
-        PRINT_ERROR("FSFltDeviceControl", __resStatus);
+      __irp->IoStatus.Status = __res;
+      __irp->IoStatus.Information = sizeof(DRIVER_IO);
+      if (!NT_SUCCESS(__res)) {
+        PRINT_ERROR("FSFltDeviceControl", __res);
       } else {
-        __irp->IoStatus.Information = sizeof(DRIVER_IO);
         PRINT_SUCCESS("FSFltDeviceControl");
       }
 
@@ -150,22 +149,22 @@ FSFltMajorFunction(
       break;
     
     default:
-      __resStatus = STATUS_INVALID_DEVICE_REQUEST;
+      __res = STATUS_INVALID_DEVICE_REQUEST;
 
-      __irp->IoStatus.Status = __resStatus;
+      __irp->IoStatus.Status = __res;
       __irp->IoStatus.Information = 0;
 
       IoCompleteRequest(__irp, IO_NO_INCREMENT);
   }
 
-  return __resStatus;
+  return __res;
 }
 
 NTSTATUS
 FSFltHandleCreate(
   _In_ PIRP __irp
 ) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
 
   UNREFERENCED_PARAMETER(__irp);
 
@@ -179,22 +178,22 @@ FSFltHandleCreate(
       || FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_CDO_OPEN_REF)
     );
     
-    __resStatus = STATUS_DEVICE_ALREADY_ATTACHED;
+    __res = STATUS_DEVICE_ALREADY_ATTACHED;
   } else {
     SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_CDO_OPEN_REF);
     SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_CDO_OPEN_HANDLE);
 
-    __resStatus = STATUS_SUCCESS;
+    __res = STATUS_SUCCESS;
   }
 
-  return __resStatus;
+  return __res;
 }
 
 NTSTATUS
 FSFltHandleClose(
   _In_ PIRP __irp
 ) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
 
   UNREFERENCED_PARAMETER(__irp);
 
@@ -207,14 +206,14 @@ FSFltHandleClose(
 
   ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_CDO_OPEN_REF);
 
-  return __resStatus;
+  return __res;
 }
 
 NTSTATUS
 FSFltHandleCleanup(
   _In_ PIRP __irp
 ) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
 
   UNREFERENCED_PARAMETER(__irp);
 
@@ -227,7 +226,7 @@ FSFltHandleCleanup(
 
   ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_CDO_OPEN_HANDLE);
 
-  return __resStatus;
+  return __res;
 }
 
 NTSTATUS
@@ -235,57 +234,73 @@ FSFltDeviceControl(
   _In_ PIRP __irp
 ) {
 
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
   LONG __result = FSFLT_ERROR_SUCCESS;
   ULONG __ioctlCode;
   PIO_STACK_LOCATION __irpStack;
-  PDRIVER_IO __ioctlOutput;
+  PDRIVER_IO __ioctlInput;
+  ULONG __ioctlInputBufferLen;
   ULONG __ioctlOutputBufferLen;
-  static PRULES_ACE __head = NULL;
 
   PAGED_CODE();
 
   __irpStack = IoGetCurrentIrpStackLocation(__irp);
   __ioctlCode = __irpStack->Parameters.DeviceIoControl.IoControlCode;
+  __ioctlInputBufferLen =
+    __irpStack->Parameters.DeviceIoControl.InputBufferLength;
   __ioctlOutputBufferLen =
     __irpStack->Parameters.DeviceIoControl.OutputBufferLength;
 
-  if (__ioctlOutputBufferLen != sizeof(DRIVER_IO)) {
-    __resStatus = STATUS_INVALID_PARAMETER;
-    return __resStatus;
+  if (__ioctlInputBufferLen != sizeof(DRIVER_IO)
+    || __ioctlOutputBufferLen != sizeof(DRIVER_IO)) {
+    __res = STATUS_INVALID_PARAMETER;
+    return __res;
   }
 
-  __ioctlOutput = (PDRIVER_IO)__irp->AssociatedIrp.SystemBuffer;
+  __ioctlInput = (PDRIVER_IO)__irp->AssociatedIrp.SystemBuffer;
 
   switch (__ioctlCode) {
-    case IOCTL_SET_LOAD_IMAGE:
-      __resStatus = FSFltSetLoadImageNotify(&__result);
-      break;
-    case IOCTL_REMOVE_LOAD_IMAGE:
-      __resStatus = FSFltRemoveLoadImageNotify(&__result);
+    case IOCTL_PRINT_RULES:
+      PrintRules(_global._rulesList);
+      __result = FSFLT_ERROR_SUCCESS;
+      __res = STATUS_SUCCESS;
       break;
     case IOCTL_ADD_RULE:
-      __resStatus = AddAce(&__head, L"Test1", 3, &__result);
-      PrintAceList(__head);
+      __res = AddRule(
+        &(_global._rulesList),
+        __ioctlInput->_type._ruleAddInfo._fileName,
+        __ioctlInput->_type._ruleAddInfo._procName,
+        __ioctlInput->_type._ruleAddInfo._accessMask,
+        &__result
+      );
       break;
     case IOCTL_DEL_RULE:
-      __resStatus = DelAce(&__head, __head, &__result);
-      PrintAceList(__head);
+      __res = DelRule(
+        &(_global._rulesList),
+        __ioctlInput->_type._ruleAddInfo._fileName,
+        __ioctlInput->_type._ruleAddInfo._procName,
+        &__result
+      );
+      break;
+    case IOCTL_SET_LOAD_IMAGE:
+      __res = FSFltSetLoadImageNotify(&__result);
+      break;
+    case IOCTL_REMOVE_LOAD_IMAGE:
+      __res = FSFltRemoveLoadImageNotify(&__result);
       break;
     default:
-      __resStatus = STATUS_INVALID_PARAMETER;
+      __res = STATUS_INVALID_PARAMETER;
   }
 
-  __ioctlOutput->_result = __result;
-
-  return __resStatus;
+  ((PDRIVER_IO)__irp->UserBuffer)->_result = __result;
+  return __res;
 }
 
 NTSTATUS
 FSFltSetLoadImageNotify(
   _Inout_ LONG* __result
 ) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
   UNICODE_STRING __logFileName;
   OBJECT_ATTRIBUTES __objAttrs;
   IO_STATUS_BLOCK __ioStatusBlock;
@@ -310,7 +325,7 @@ FSFltSetLoadImageNotify(
     NULL
   );
 
-  __resStatus = ZwCreateFile(
+  __res = ZwCreateFile(
     &_global._filterLogFile,
     FILE_APPEND_DATA | SYNCHRONIZE,
     &__objAttrs,
@@ -324,22 +339,22 @@ FSFltSetLoadImageNotify(
     0
   );
 
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("ZwCreateFile", __resStatus);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("ZwCreateFile", __res);
     *__result = FSFLT_DRIVER_ERROR_LOG_FILE_CREATE_FAILED;
-    return __resStatus;
+    return __res;
   }
 
   SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED);
 
-  __resStatus = PsSetLoadImageNotifyRoutine(FSFltLoadImageNotify);
+  __res = PsSetLoadImageNotifyRoutine(FSFltLoadImageNotify);
 
-  if (!NT_SUCCESS(__resStatus)) {
+  if (!NT_SUCCESS(__res)) {
     ZwClose(_global._filterLogFile);
     ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOG_FILE_OPENED);
-    PRINT_ERROR("PsSetLoadImageNotifyRoutine", __resStatus);
+    PRINT_ERROR("PsSetLoadImageNotifyRoutine", __res);
     *__result = FSFLT_DRIVER_ERROR_SET_LOAD_IMAGE;
-    return __resStatus;
+    return __res;
   }
 
   SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET);
@@ -348,14 +363,14 @@ FSFltSetLoadImageNotify(
 
   *__result = FSFLT_ERROR_SUCCESS;
 
-  return __resStatus;
+  return __res;
 }
 
 NTSTATUS
 FSFltRemoveLoadImageNotify(
   _Inout_ LONG* __result
 ) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
   if (!FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET)) {
     *__result = FSFLT_DRIVER_ERROR_LOAD_IMAGE_ALREADY_REMOVED;
     return STATUS_INVALID_PARAMETER;
@@ -365,12 +380,12 @@ FSFltRemoveLoadImageNotify(
     return STATUS_INVALID_PARAMETER;
   }
 
-  __resStatus = PsRemoveLoadImageNotifyRoutine(FSFltLoadImageNotify);
+  __res = PsRemoveLoadImageNotifyRoutine(FSFltLoadImageNotify);
 
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("PsRemoveLoadImageNotifyRoutine", __resStatus);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("PsRemoveLoadImageNotifyRoutine", __res);
     *__result = FSFLT_DRIVER_ERROR_LOAD_IMAGE_REMOVE;
-    return __resStatus;
+    return __res;
   }
   
   ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET);
@@ -381,7 +396,7 @@ FSFltRemoveLoadImageNotify(
   PRINT_SUCCESS("PsRemoveLoadImageNotifyRoutine");
 
   *__result = FSFLT_ERROR_SUCCESS;
-  return __resStatus;
+  return __res;
 }
 
 VOID
@@ -394,7 +409,7 @@ FSFltLoadImageNotify(
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH < NTSTRSAFE_MAX_CCH,
     "Buffer size is bigger than allowed by NTSTRSAFE_MAX_CCH constant"
   );
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
   LARGE_INTEGER __systemTime, __localTime;
   TIME_FIELDS __timeFields;
   WCHAR __logStr[DRIVER_LOAD_IMAGE_BUFFER_LENGTH];
@@ -411,7 +426,7 @@ FSFltLoadImageNotify(
   ExSystemTimeToLocalTime(&__systemTime, &__localTime);
   RtlTimeToTimeFields(&__localTime, &__timeFields);
 
-  __resStatus = RtlStringCchPrintfW(
+  __res = RtlStringCchPrintfW(
     __logStr,
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH,
     L"[%02hd\\%02hd\\%4hd %02hd:%02hd:%02hd] Proces ID: %d "
@@ -422,25 +437,25 @@ FSFltLoadImageNotify(
     __imageInfo->ImageBase, __imageInfo->ImageSize
   );
 
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("RtlStringCchPrintfW", __resStatus);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("RtlStringCchPrintfW", __res);
     return;
   }
 
-  __resStatus = RtlStringCchLengthW(
+  __res = RtlStringCchLengthW(
     __logStr,
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH,
     &__logStrLen
   );
 
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("RtlStringCchLengthW", __resStatus);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("RtlStringCchLengthW", __res);
     return;
   }
 
   __logStrLen *= sizeof(__logStr[0]);
 
-  __resStatus = ZwWriteFile(
+  __res = ZwWriteFile(
     _global._filterLogFile,
     NULL,
     NULL,

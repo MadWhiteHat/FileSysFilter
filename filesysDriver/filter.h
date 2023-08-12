@@ -22,16 +22,18 @@
 #pragma warning(error:4505) // Enable-identify dead functions
 
 #if DBG
+#define PRINT(FMT, ...) \
+  DbgPrint(FMT, __VA_ARGS__);
 
-#define PRINT_STATUS(FMT, ...) \
-  DbgPrint("[FileSysFilter]: " FMT, __VA_ARGS__);
 
 #else
 
-#define PRINT_STATUS(FMT, ...) { NOTHING; }
+#define PRINT(FMT, ...) { NOTHING; }
 
 #endif //DBG
 
+#define PRINT_STATUS(FMT, ...) \
+  PRINT("[FileSysFilter]: " FMT, __VA_ARGS__);
 #define PRINT_ERROR(FUNC, ERR_CODE) \
   PRINT_STATUS("%s failed with 0x%08x\n", FUNC, ERR_CODE);
 #define PRINT_SUCCESS(FUNC) \

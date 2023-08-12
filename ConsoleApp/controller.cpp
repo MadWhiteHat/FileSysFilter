@@ -43,13 +43,13 @@ Controller::Run(VOID) {
     else if (!choice.compare(0, 4, L"add ")) {
       choice.erase(0, 4);
       try {
-        std::wstringstream input(std::move(choice));
+        std::wstringstream __input(std::move(choice));
         std::wstring __fileName;
         std::wstring __procName;
         std::wstring __accessMask;
-        input >> __fileName;
-        input >> __procName;
-        input >> __accessMask;
+        __input >> __fileName;
+        __input >> __procName;
+        __input >> __accessMask;
 
         __dwRes = _rules.AddRule(__fileName, __procName, __accessMask);
 
@@ -145,8 +145,8 @@ Controller::_Usage(VOID) {
   std::cout << "Program for setting access rights" << std::endl;
   std::cout << OUTPUT_LEVEL << "Valid parameters for execution:" << std::endl;
   std::cout << OUTPUT_LEVEL << "print - display current permissions\n";
-  std::cout << OUTPUT_LEVEL << "del - delete a rule with a number N\n";
-  std::cout << OUTPUT_LEVEL << "add - add a new rule\n";
+  std::cout << OUTPUT_LEVEL << "del {NUMBER} - delete a rule with a number N\n";
+  std::cout << OUTPUT_LEVEL << "add {PROCESS_NAME} {FILENAME} {PERMISSIONS} - add a new rule\n";
   std::cout << OUTPUT_LEVEL << "install - install FileSysDriver\n";
   std::cout << OUTPUT_LEVEL << "uninstall - uninstall FileSysDriver\n";
   std::cout << OUTPUT_LEVEL << "start - load FileSysDriver\n";

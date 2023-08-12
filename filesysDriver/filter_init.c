@@ -1,4 +1,5 @@
 #include "filter.h"
+#include "rules_list.h"
 
 
 #ifdef ALLOC_PRAGMA
@@ -16,7 +17,7 @@ DriverEntry(
   _In_ PDRIVER_OBJECT  __driverObj,
   _In_ PUNICODE_STRING __registryPath) {
 
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
 
   CONST FLT_REGISTRATION __filterRegistration = {
     sizeof(FLT_REGISTRATION),               // Size
@@ -44,44 +45,44 @@ DriverEntry(
   _global._filterDriverObject = __driverObj;
   _global._rulesList._curTag = START_TAG;
   
-  __resStatus = FltRegisterFilter(
+  __res = FltRegisterFilter(
     __driverObj,
     &__filterRegistration,
     &_global._filter
   );
 
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("FltRegisterFilter", __resStatus);
-    return __resStatus;
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("FltRegisterFilter", __res);
+    return __res;
   } else { PRINT_SUCCESS("FltRegisterFilter"); }
 
-  __resStatus = FSFltCreateCDO(__driverObj);
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("FSFltCreateCDO", __resStatus);
+  __res = FSFltCreateCDO(__driverObj);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("FSFltCreateCDO", __res);
     FltUnregisterFilter(_global._filter);
-    return __resStatus;
+    return __res;
   } else { PRINT_SUCCESS("FSFltCreateCDO"); }
 
-  __resStatus = FltStartFiltering(
+  __res = FltStartFiltering(
     _global._filter
   );
 
-  if (!NT_SUCCESS(__resStatus)) {
-    PRINT_ERROR("FltStartFiltering", __resStatus);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("FltStartFiltering", __res);
     FSFltDeleteCDO();
     FltUnregisterFilter(_global._filter);
-    return __resStatus;
+    return __res;
   } else { PRINT_SUCCESS("FltStartFiltering"); }
 
   PRINT_SUCCESS("DriverEntry");
-  return __resStatus;
+  return __res;
 }
 
 NTSTATUS
 FSFltUnload(
   _In_ FLT_FILTER_UNLOAD_FLAGS __flags
 ) {
-  NTSTATUS __resStatus = STATUS_SUCCESS;
+  NTSTATUS __res = STATUS_SUCCESS;
   LONG __result = FSFLT_ERROR_SUCCESS;
 
   UNREFERENCED_PARAMETER(__flags);
@@ -97,9 +98,9 @@ FSFltUnload(
   }
 
   if (FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_LOAD_IMAGE_SET)) {
-    __resStatus = FSFltRemoveLoadImageNotify(&__result);
-    if (!NT_SUCCESS(__resStatus)) {
-      PRINT_ERROR("FSFltRemoveLoadImageNotify", __resStatus);
+    __res = FSFltRemoveLoadImageNotify(&__result);
+    if (!NT_SUCCESS(__res)) {
+      PRINT_ERROR("FSFltRemoveLoadImageNotify", __res);
       return STATUS_FLT_DO_NOT_DETACH;
     } else { PRINT_SUCCESS("FSFltRemoveLoadImageNotify"); }
   }
@@ -112,6 +113,12 @@ FSFltUnload(
   FltUnregisterFilter(_global._filter);
 
   PRINT_SUCCESS("FltUnregisterFilter");
+
+  __res = DelAllRules(&(_global._rulesList), &__result);
+  if (!NT_SUCCESS(__res)) {
+    PRINT_ERROR("DelAllRules", __res);
+    return STATUS_FLT_DO_NOT_DETACH;
+  } else { PRINT_SUCCESS("DelAllRules"); }
 
   FSFltDeleteCDO();
 

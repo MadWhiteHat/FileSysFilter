@@ -176,8 +176,24 @@ DisableLoadImageNotify() {
 
 DriverControl::Result
 DriverControl::
-AddRule() { 
+AddRule(
+  std::wstring& __fileName,
+  std::wstring& __procName,
+  DWORD __accessMask
+) { 
   DRIVER_IO __ioctlInfo;
+
+  std::swprintf(
+    __ioctlInfo._type._ruleAddInfo._fileName,
+    FILE_BUFFER_SIZE,
+    __fileName.c_str()
+  );
+  std::swprintf(
+    __ioctlInfo._type._ruleAddInfo._procName,
+    PROCESS_BUFFER_SIZE,
+    __procName.c_str()
+  );
+  __ioctlInfo._type._ruleAddInfo._accessMask = __accessMask;
 
   return _SendIOCTLCode(IOCTL_ADD_RULE, &__ioctlInfo);
 }
@@ -185,7 +201,12 @@ AddRule() {
 DriverControl::Result
 DriverControl::
 DelRule() { 
+  std::wstring __fileName(L"Test.txt");
+  std::wstring __procName(L"Test2.exe");
   DRIVER_IO __ioctlInfo;
+
+  std::swprintf(__ioctlInfo._type._ruleAddInfo._fileName, FILE_BUFFER_SIZE, __fileName.c_str());
+  std::swprintf(__ioctlInfo._type._ruleAddInfo._procName, PROCESS_BUFFER_SIZE, __procName.c_str());
 
   return _SendIOCTLCode(IOCTL_DEL_RULE, &__ioctlInfo);
 }
@@ -275,7 +296,10 @@ _SendIOCTLCode(DWORD __ioctlCode, PDRIVER_IO __drvIo) {
   if (__bRes == FALSE) {
     __res._winFuncName = "DeviceIoControl";
     __res._winErrCode = GetLastError();
-  } else { __res._winErrCode = ERROR_SUCCESS; }
+  } else {
+    __res._internalErrCode = FSFLT_ERROR_SUCCESS;
+    __res._winErrCode = ERROR_SUCCESS;
+  }
 
   CloseHandle(__hDriver);
 
