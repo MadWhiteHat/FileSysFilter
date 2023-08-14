@@ -268,17 +268,23 @@ FSFltDeviceControl(
     case IOCTL_ADD_RULE:
       __res = AddRule(
         &(_global._rulesList),
-        __ioctlInput->_type._ruleAddInfo._fileName,
-        __ioctlInput->_type._ruleAddInfo._procName,
-        __ioctlInput->_type._ruleAddInfo._accessMask,
+        __ioctlInput->_ruleInfo._fileName,
+        __ioctlInput->_ruleInfo._procName,
+        __ioctlInput->_ruleInfo._accessMask,
         &__result
       );
       break;
     case IOCTL_DEL_RULE:
       __res = DelRule(
         &(_global._rulesList),
-        __ioctlInput->_type._ruleAddInfo._fileName,
-        __ioctlInput->_type._ruleAddInfo._procName,
+        __ioctlInput->_ruleInfo._fileName,
+        __ioctlInput->_ruleInfo._procName,
+        &__result
+      );
+      break;
+    case IOCTL_CLEAR_RULES:
+      __res = DelAllRules(
+        &(_global._rulesList),
         &__result
       );
       break;

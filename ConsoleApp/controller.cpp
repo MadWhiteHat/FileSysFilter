@@ -8,18 +8,43 @@
 #include <cstdarg>
 #include <windows.h>
 
-Controller::Controller() : Controller(true) {}
-Controller::Controller(bool __verbose) : _verbose(__verbose) {}
+void
+InitResult(
+  PRESULT __res,
+  LPCWSTR __funcName,
+  DWORD __winErrCode,
+  DWORD __internalErrCode
+) {
+  size_t __funcNameLen = 0;
+
+  if (__res == NULL) { return; }
+
+  memset(__res->_funcName, 0x00, FUNC_BUFFER_SIZE);
+
+  if (__funcName != NULL) {
+    __funcNameLen = wcslen(__funcName);
+
+    std::swprintf(
+      __res->_funcName,
+      FUNC_BUFFER_SIZE,
+      __funcName
+    );
+  }
+
+  __res->_winErrCode = __winErrCode;
+  __res->_internalErrCode = __internalErrCode;
+}
+
+Controller::
+Controller() : Controller(true) {}
+
+Controller::
+Controller(bool __verbose) : _verbose(__verbose) {}
 
 VOID
-Controller::Run(VOID) {
-  DriverControl::Result __res;
-  DWORD __dwRes;
-
-  __dwRes = _rules.LoadRules();
-
-  if (!FSFLT_SUCCESS(__dwRes)) { LOG_ERROR("Loading rules", __res); }
-  else { LOG_STATUS("Rules were loaded successfully"); }
+Controller::
+Run() {
+  RESULT __res;
 
   std::wstring choice;
   while (choice.compare(L"exit")) {
@@ -27,18 +52,24 @@ Controller::Run(VOID) {
     _Usage();
     std::cout << "Input command: ";
     std::getline(std::wcin, choice);
-    if (!choice.compare(L"print")) { _rules.PrintRules(); }
+    if (!choice.compare(L"print")) {
+      _rules.Print();
+      _drv.PrintRules();
+    }
     else if (!choice.compare(0, 4, L"del ")) {
       choice.erase(0, 4);
       try {
-        int32_t __num = std::stoi(choice);
+        DWORD __idx = std::stoi(choice);
 
-        __dwRes = _rules.DeleteRule(--__num);
+        DeleteRule(__idx, &__res);
 
-        if (!FSFLT_SUCCESS(__dwRes)) { LOG_ERROR("Deleting rule", __res); }
-        else { LOG_STATUS("Rule #%d was deleted", __num + 1); }
-      }
-      catch (std::exception& __ex) { std::cout << __ex.what() << '\n'; }
+        if (!FSFLT_SUCCESS(__res._internalErrCode)) {
+          LOG_RESULT("Deleting rule", &__res);
+        } else {
+          LOG_STATUS("Rule #%d was deleted", __idx);
+        }
+
+      } catch (std::exception& __ex) { std::cout << __ex.what() << '\n'; }
     }
     else if (!choice.compare(0, 4, L"add ")) {
       choice.erase(0, 4);
@@ -46,97 +77,343 @@ Controller::Run(VOID) {
         std::wstringstream __input(std::move(choice));
         std::wstring __fileName;
         std::wstring __procName;
-        std::wstring __accessMask;
+        std::wstring __accessMaskStr;
+
         __input >> __fileName;
         __input >> __procName;
-        __input >> __accessMask;
+        __input >> __accessMaskStr;
 
-        __dwRes = _rules.AddRule(__fileName, __procName, __accessMask);
+        AddRule(__fileName, __procName, __accessMaskStr, &__res);
 
-        if (!FSFLT_SUCCESS(__dwRes)) {
-          LOG_ERROR("Adding rule", __res);
+        if (!FSFLT_SUCCESS(__res._internalErrCode)) {
+          LOG_RESULT("Adding rule", &__res);
         } else {
           LOG_STATUS(
-            "Rule: Process: %ws File: %ws Permissions: %ws was added successfully",
-            __fileName.data(), __procName.data(), __accessMask.data()
+            "Rule: File: %ws Process: %ws Permissions: %ws was added succesfully",
+            __fileName.data(), __procName.data(), __accessMaskStr.data()
           );
         }
-      }
-      catch (std::exception& ex) { std::cout << ex.what() << '\n'; }
+
+      } catch (std::exception& ex) { std::cout << ex.what() << '\n'; }
+    }
+    else if (!choice.compare(L"load")) {
+      Load(&__res);
+
+      if (!FSFLT_SUCCESS(__res._internalErrCode)) {
+        LOG_RESULT("Loading rules", &__res);
+      } else { LOG_STATUS("Rules has been loaded successfully"); }
+    }
+    else if (!choice.compare(L"save")) {
+      _rules.Save(CONF_FILEPATH, &__res);
+
+      if (!FSFLT_SUCCESS(__res._internalErrCode)) {
+        LOG_RESULT("Saving rules", &__res);
+      } else { LOG_STATUS("Rules has been saved successfully"); }
     }
     else if (!choice.compare(L"start")) {
-      __res = _drv.Start();
+      _drv.Start(&__res);
 
       if (!FSFLT_SUCCESS(__res._internalErrCode)) {
         if (__res._winErrCode == ERROR_SERVICE_ALREADY_RUNNING) {
           LOG_STATUS("Service already running");
-        } else { LOG_RESULT("Starting service", __res); }
+        } else { LOG_RESULT("Starting service", &__res); }
       } else { LOG_STATUS("Service has been started successfully"); }
     }
     else if (!choice.compare(L"stop")) {
-      __res = _drv.Stop();
+
+      _drv.Stop(&__res);
 
       if (!FSFLT_SUCCESS(__res._internalErrCode)) {
         if (__res._winErrCode == ERROR_SERVICE_NOT_ACTIVE) {
           LOG_STATUS("Service already stopped");
-        } else { LOG_RESULT("Stopping service", __res); }
+        } else { LOG_RESULT("Stopping service", &__res); }
       } else { LOG_STATUS("Service has been stopped successfully"); }
     }
     else if (!choice.compare(L"install")) {
-      __res = _drv.Install();
+      _drv.Install(&__res);
       
       if (!FSFLT_SUCCESS(__res._internalErrCode)) {
-        if (__res._internalErrCode == FSFLT_DRIVER_CONTROL_ERROR_SERVICE_ALREADY_INSTALLED) {
+        if (__res._internalErrCode
+          == FSFLT_DRIVER_CONTROL_ERROR_SERVICE_ALREADY_INSTALLED) {
           LOG_STATUS("Servce has already been installed");
-        } else { LOG_RESULT("Installing service", __res); }
+        } else { LOG_RESULT("Installing service", &__res); }
       } else { LOG_STATUS("Service has been installed successfully"); }
     }
     else if (!choice.compare(L"uninstall")) {
-      __res = _drv.Uninstall();
+      _drv.Uninstall(&__res);
       
       if (!FSFLT_SUCCESS(__res._internalErrCode)) {
-        if (__res._internalErrCode == FSFLT_DRIVER_CONTROL_ERROR_SERVICE_ALREADY_UNINSTALLED) {
+        if (__res._internalErrCode
+          == FSFLT_DRIVER_CONTROL_ERROR_SERVICE_ALREADY_UNINSTALLED) {
           LOG_STATUS("Servce has already been uninstalled");
-        } else { LOG_RESULT("Uninstalling service", __res); }
+        } else { LOG_RESULT("Uninstalling service", &__res); }
       } else { LOG_STATUS("Service has been uninstalled successfully"); }
     }
     else if (!choice.compare(L"set")) {
-      __res = _drv.EnableLoadImageNotify();
+      _drv.EnableLoadImageNotify(&__res);
       
       if (!FSFLT_SUCCESS(__res._internalErrCode)) {
-        LOG_RESULT("Setting LoadImage notifier", __res);
+        LOG_RESULT("Setting LoadImage notifier", &__res);
       } else { LOG_STATUS("LoadImage notifier has been successfully set"); }
     }
     else if (!choice.compare(L"rm")) {
-      __res = _drv.DisableLoadImageNotify();
+      _drv.DisableLoadImageNotify(&__res);
       
       if (!FSFLT_SUCCESS(__res._internalErrCode)) {
-        LOG_RESULT("Removing LoadImage notifier", __res);
-      } else {
-        LOG_STATUS("LoadImage notifier has been successfully removed");
-      }
-    }
-    else if (!choice.compare(L"addr")) {
-      __res = _drv.AddRule();
-      
-      if (!FSFLT_SUCCESS(__res._internalErrCode)) {
-        LOG_RESULT("Update", __res);
-      } else {
-        LOG_STATUS("Update has been successeded");
-      }
-    }
-    else if (!choice.compare(L"delr")) {
-      __res = _drv.DelRule();
-      
-      if (!FSFLT_SUCCESS(__res._internalErrCode)) {
-        LOG_RESULT("Update", __res);
-      } else {
-        LOG_STATUS("Update has been successeded");
-      }
+        LOG_RESULT("Removing LoadImage notifier", &__res);
+      } else { LOG_STATUS("LoadImage notifier has been successfully removed"); }
     }
     else { continue; }
     system("pause");
   }
+}
+
+VOID
+Controller::
+DeleteRule(DWORD __idx, PRESULT __res) {
+  std::wstring __fileName;
+  std::wstring __procName;
+  DWORD __dwRes;
+
+  __dwRes = _rules.FindByIdx(--__idx, __fileName, __procName);
+  if (!FSFLT_SUCCESS(__dwRes)) {
+    InitResult(
+      __res,
+      L"MyRulesList::FindByIdx",
+      ERROR_SUCCESS,
+      __dwRes
+    );
+
+    return;
+  }
+
+  _drv.DelRule(__fileName, __procName, __res);
+  if (!FSFLT_SUCCESS(__res->_internalErrCode)) { return; }
+
+  __dwRes = _rules.Delete(__fileName, __procName);
+  if (!FSFLT_SUCCESS(__dwRes)) {
+    InitResult(
+      __res,
+      L"MyRulesList::Delete",
+      ERROR_SUCCESS,
+      __dwRes
+    );
+
+    return;
+  }
+
+  InitResult(
+    __res,
+    L"Controller::DeleteRule",
+    ERROR_SUCCESS,
+    FSFLT_ERROR_SUCCESS
+  );
+}
+
+VOID
+Controller::
+AddRule(
+  std::wstring& __fileName,
+  std::wstring& __procName,
+  std::wstring& __accessMaskStr,
+  PRESULT __res
+) {
+  DWORD __dwRes;
+  DWORD __accessMask;
+
+  __dwRes = _ConvertMask(__accessMaskStr, &__accessMask);
+  if (!FSFLT_SUCCESS(__dwRes)) {
+    InitResult(
+      __res,
+      L"Controller::_ConvertMask",
+      ERROR_INVALID_PARAMETER,
+      __dwRes
+    );
+
+    return;
+  }
+
+  _drv.AddRule(__fileName, __procName, __accessMask, __res);
+  if (!FSFLT_SUCCESS(__res->_internalErrCode)) { return; }
+
+  __dwRes = _rules.Add(__fileName, __procName, __accessMask);
+
+  if (!FSFLT_SUCCESS(__dwRes)) {
+    InitResult(
+      __res,
+      L"MyRulesList::Add",
+      ERROR_SUCCESS,
+      __dwRes
+    );
+
+    return;
+  }
+
+  InitResult(
+    __res,
+    L"Controller::AddRule",
+    ERROR_SUCCESS,
+    FSFLT_ERROR_SUCCESS
+  );
+}
+
+VOID
+Controller::
+Load(PRESULT __res) {
+  DWORD __dwRes;
+  std::wstring __rules;
+  std::wstringstream __rulesBuf;
+  std::wifstream __fdIn(CONF_FILEPATH);
+  
+  if (!__fdIn.is_open()) {
+    InitResult(
+      __res,
+      L"wifstream::open",
+      ERROR_SUCCESS,
+      FSFLT_CONTROLLER_ERROR_OPEN_RULES_FILE
+    );
+
+    return;
+  }
+
+  __rulesBuf << __fdIn.rdbuf();
+  __rules = std::move(__rulesBuf.str());
+
+  if (!__fdIn.good() && !__fdIn.eof()) {
+    __fdIn.close();
+    InitResult(
+      __res,
+      L"wifstream::rdbuf",
+      ERROR_SUCCESS,
+      FSFLT_CONTROLLER_ERROR_READ_RULES
+    );
+
+    return;
+  }
+  __fdIn.close();
+
+  _drv.ClearRules(__res);
+  if (!FSFLT_SUCCESS(__res->_internalErrCode)) { return; }
+
+  _rules.Clear();
+
+  {
+    std::wstring __fileName;
+    std::wstring __procName;
+    std::wstring __accessMaskStr(2, 0);
+    std::wstring __entryDummy(
+      L"<entry>"
+        L"<file></file>"
+        L"<process></process>"
+        L"<permissions></permissions>"
+      L"</entry>"
+    );
+    std::wstring __fileStart(L"<file>");
+    std::wstring __fileEnd(L"</file>");
+    std::wstring __procStart(L"<process>");
+    std::wstring __procEnd(L"</process>");
+    std::wstring __accessMaskStart(L"<permissions>");
+    std::wstring __accessMaskEnd(L"</permissions>");
+    size_t __shift = 0;
+    DWORD __accssMask;
+
+    while (__rules.length() > __entryDummy.length()) {
+      __shift = __rules.find(__fileStart);
+
+      if (__shift == std::wstring::npos) {
+        InitResult(
+          __res,
+          L"wstring::find",
+          ERROR_SUCCESS,
+          FSFLT_CONTROLLER_ERROR_PARSE_RULES
+        );
+        return ;
+      }
+
+      __shift += __fileStart.length();
+      __rules.erase(0, __shift);
+      __shift = __rules.find(__fileEnd);
+
+      if (__shift == std::wstring::npos) {
+        InitResult(
+          __res,
+          L"wstring::find",
+          ERROR_SUCCESS,
+          FSFLT_CONTROLLER_ERROR_PARSE_RULES
+        );
+        return ;
+      }
+
+      __fileName.assign(__rules, 0, __shift);
+
+      __shift = __rules.find(__procStart);
+
+      if (__shift == std::wstring::npos) {
+        InitResult(
+          __res,
+          L"wstring::find",
+          ERROR_SUCCESS,
+          FSFLT_CONTROLLER_ERROR_PARSE_RULES
+        );
+        return ;
+      }
+
+      __shift += __procStart.length();
+      __rules.erase(0, __shift);
+      __shift = __rules.find(__procEnd);
+
+      if (__shift == std::wstring::npos) {
+        InitResult(
+          __res,
+          L"wstring::find",
+          ERROR_SUCCESS,
+          FSFLT_CONTROLLER_ERROR_PARSE_RULES
+        );
+        return ;
+      }
+
+      __procName.assign(__rules, 0, __shift);
+
+      __shift = __rules.find(__accessMaskStart);
+
+      if (__shift == std::wstring::npos) {
+        InitResult(
+          __res,
+          L"wstring::find",
+          ERROR_SUCCESS,
+          FSFLT_CONTROLLER_ERROR_PARSE_RULES
+        );
+        return ;
+      }
+
+      __shift += __accessMaskStart.length();
+      __rules.assign(__rules.data() + __shift);
+      __shift = __rules.find(__accessMaskEnd);
+
+      if (__shift == std::wstring::npos) {
+        InitResult(
+          __res,
+          L"wstring::find",
+          ERROR_SUCCESS,
+          FSFLT_CONTROLLER_ERROR_PARSE_RULES
+        );
+        return ;
+      }
+
+      __accessMaskStr.assign(__rules, 0, __shift);
+
+      AddRule(__fileName, __procName, __accessMaskStr, __res);
+
+      if (!FSFLT_SUCCESS(__res->_internalErrCode)) { return; }
+    } 
+  }
+
+  InitResult(
+    __res,
+    L"Controller::Load",
+    ERROR_SUCCESS,
+    FSFLT_ERROR_SUCCESS
+  );
 }
 
 VOID
@@ -147,6 +424,8 @@ Controller::_Usage(VOID) {
   std::cout << OUTPUT_LEVEL << "print - display current permissions\n";
   std::cout << OUTPUT_LEVEL << "del {NUMBER} - delete a rule with a number N\n";
   std::cout << OUTPUT_LEVEL << "add {PROCESS_NAME} {FILENAME} {PERMISSIONS} - add a new rule\n";
+  std::cout << OUTPUT_LEVEL << "load - load rules from config file\n";
+  std::cout << OUTPUT_LEVEL << "save - save current rules to config file\n";
   std::cout << OUTPUT_LEVEL << "install - install FileSysDriver\n";
   std::cout << OUTPUT_LEVEL << "uninstall - uninstall FileSysDriver\n";
   std::cout << OUTPUT_LEVEL << "start - load FileSysDriver\n";
@@ -169,7 +448,7 @@ Controller::_LogMsg(const char* __fmt, ...) {
   va_end(__args);
 
   if (_verbose) { std::cout << __logBuf; }
-  __log.open(LOG_FILENAME, std::ios_base::out | std::ios_base::app);
+  __log.open(LOG_FILEPATH, std::ios_base::out | std::ios_base::app);
   if (__log.is_open()) {
     __log << __logBuf;
     __log.close();
@@ -178,9 +457,37 @@ Controller::_LogMsg(const char* __fmt, ...) {
 
 VOID
 Controller::
-_LogResult(const char* __msg, DriverControl::Result __res) {
+_LogResult(const char* __msg, PRESULT __res) {
   _LogMsg(
-    "%s failed with 0x%08x %s returns: 0x%08x\n",
-    __msg, __res._internalErrCode, __res._winFuncName.data(), __res._winErrCode
+    "%s failed with 0x%08x %ws returns: 0x%08x\n",
+    __msg, __res->_internalErrCode, __res->_funcName, __res->_winErrCode
   );
+}
+
+DWORD
+Controller::
+_ConvertMask(std::wstring& __accessMaskStr, LPDWORD __accessMask) {
+  
+  if (__accessMaskStr.length() != 2) {
+    return FSFLT_RULES_ERROR_INVALID_PERMISSIONS;
+  }
+
+  // 0x72 = 'r'
+  if (__accessMaskStr[0] == 0x72) {
+    *__accessMask |= MASK_ALLOW_READ;
+  }
+  // 0x2d = '-'
+  else if (__accessMaskStr[0] != 0x2d) {
+    return FSFLT_RULES_ERROR_INVALID_PERMISSIONS;
+  }
+  // 0x77 = 'w'
+  if (__accessMaskStr[1] == 0x77) {
+    *__accessMask |= MASK_ALLOW_WRITE;
+  }
+  // 0x2d = '-'
+  else if (__accessMaskStr[1] != 0x2d) {
+    return FSFLT_RULES_ERROR_INVALID_PERMISSIONS;
+  }
+
+  return FSFLT_ERROR_SUCCESS;
 }

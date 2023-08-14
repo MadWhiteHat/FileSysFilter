@@ -13,65 +13,76 @@
 class DriverControl {
 public:
 
-  struct Result {
-    std::string _winFuncName;
-    DWORD _winErrCode;
-    DWORD _internalErrCode;
-  };
+  VOID
+  Start(PRESULT __res);
 
-  DriverControl::Result
-  Start();
+  VOID
+  Stop(PRESULT __res);
 
-  DriverControl::Result
-  Stop();
+  VOID
+  Install(PRESULT __res);
 
-  DriverControl::Result
-  Install();
+  VOID
+  Uninstall(PRESULT __res);
 
-  DriverControl::Result
-  Uninstall();
+  VOID
+  EnableLoadImageNotify(PRESULT __res);
 
-  DriverControl::Result
-  EnableLoadImageNotify();
+  VOID
+  DisableLoadImageNotify(PRESULT __res);
 
-  DriverControl::Result
-  DisableLoadImageNotify();
-
-  DriverControl::Result
+  VOID
   AddRule(
     std::wstring& __fileName,
     std::wstring& __procName,
-    DWORD __accessMask
+    DWORD __accessMask,
+    PRESULT __res
   );
 
-  DriverControl::Result
+  VOID
   DelRule(
     std::wstring& __fileName,
-    std::wstring& __procName
+    std::wstring& __procName,
+    PRESULT __res
   );
+
+  VOID
+  PrintRules();
+
+  VOID
+  ClearRules(PRESULT __res);
 
 private:
-  DriverControl::Result
-  _GetServiceHandle(SC_HANDLE* __hService);
-  DriverControl::Result
+  VOID
+  _GetServiceHandle(SC_HANDLE* __hService, PRESULT __res);
+
+  VOID
   _WaitForServiceState(
     SC_HANDLE __hService,
-    DWORD __serviceState
+    DWORD __serviceState,
+    PRESULT __res
   );
-  DriverControl::Result
+
+  VOID
   _GetServiceState(
     SC_HANDLE __hService,
-    DWORD* __currState
+    DWORD* __currState,
+    PRESULT __res
   ); 
 
-  DriverControl::Result
+  VOID
   _GetFullPath(
     std::wstring& __relPath,
-    std::wstring& __fullPath
+    std::wstring& __fullPath,
+    PRESULT __res
   );
 
-  DriverControl::Result
-  _SendIOCTLCode(DWORD __ioctlCode, PDRIVER_IO __drvIO);
+  VOID
+  _SendIOCTLCode(
+    DWORD __ioctlCode,
+    PDRIVER_IO __drvIO,
+    PRESULT __res
+  );
 };
 
 #endif // !_DRIVER_CONTROL_H

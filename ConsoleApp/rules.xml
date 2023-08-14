@@ -1,10 +1,12 @@
-<entry>
-  <file>test.txt</file>
-  <process>cmd.exe</process>
-  <permissions>rw</permissions>
-</entry>
-<entry>
-  <file>test.txt</file>
-  <process>cmd.exe</process>
-  <permissions>rW</permissions>
-</entry>
+<rules>
+	<entry>
+		<file>test.txt</file>
+		<process>cmd.exe</process>
+		<permissions>rw</permissions>
+	</entry>
+	<entry>
+		<file>new_file.txt</file>
+		<process>test.exe</process>
+		<permissions>r-</permissions>
+	</entry>
+</rules>
