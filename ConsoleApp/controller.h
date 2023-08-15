@@ -21,7 +21,7 @@
 #define LOG_ERROR(MSG, ERROR_CODE) \
   LOG_STATUS(MSG " failed with 0x%08x", ERROR_CODE)
 #define LOG_STATUS(FMT, ...) \
-  _LogMsg(FMT, __VA_ARGS__)
+  _LogMsg(FMT "\n", __VA_ARGS__)
 #define LOG_RESULT(MSG, RESULT) \
   _LogResult(MSG, RESULT)
 
