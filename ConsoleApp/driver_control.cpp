@@ -352,7 +352,7 @@ _SendIOCTLCode(
     __res,
     L"DeviceIoControl",
     (__bRes) ? ERROR_SUCCESS : GetLastError(),
-    (__bRes) ? FSFLT_ERROR_SUCCESS : __drvIo->_result._internalErrCode
+    (__bRes) ? FSFLT_ERROR_SUCCESS : __drvIo->_result
   );
 
   CloseHandle(__hDriver);

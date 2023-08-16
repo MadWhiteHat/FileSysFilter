@@ -46,28 +46,29 @@ Delete(
   // After removing element all end iterators are invalidated
 
   auto __begAcl = _aclList.begin();
-
-  for (; __begAcl != _aclList.end(); ++__begAcl) {
+  
+  while (__begAcl != _aclList.end()) {
+    auto __begAce = __begAcl->_aceList.begin();
 
     if (__begAcl->_fileName == __fileName) {
-
-      auto __begAce = __begAcl->_aceList.begin();
-
-      for (; __begAce != __begAcl->_aceList.end(); ++__begAce) {
+      while (__begAce != __begAcl->_aceList.end()) {
         if (__begAce->_procName == __procName) {
-          __begAcl->_aceList.erase(__begAce);
+          __begAce = __begAcl->_aceList.erase(__begAce);
+          
           if (__begAcl->_aceList.empty()) {
-            _aclList.erase(__begAcl);
+            __begAcl = _aclList.erase(__begAcl);
           }
+
+          return FSFLT_ERROR_SUCCESS;
         }
+
+        ++__begAce;
       }
     }
-  }
-  if (__begAcl == _aclList.end()) {
-    return FSFLT_RULES_INVALID_PARAMETERS;
+    ++__begAcl;
   }
 
-  return FSFLT_ERROR_SUCCESS;
+  return FSFLT_RULES_INVALID_PARAMETERS;
 }
 
 DWORD
@@ -116,32 +117,28 @@ FindByIdx(
   size_t __count = 0;
   size_t __curr = 0;
 
+  __fileName.clear();
+  __procName.clear();
+
   if (_aclList.empty()) { return FSFLT_RULES_ERROR_LIST_EMPTY; }
 
   for (const auto& __acl : _aclList) { __count += __acl._aceList.size(); }
   if (__idx > __count - 1) { return FSFLT_RULES_ERROR_LIST_INVALID_RANGE; }
 
-  auto __begAcl = _aclList.begin();
-  auto __endAcl = _aclList.end();
+  for (const auto& __acl : _aclList) {
+    for (const auto& __ace : __acl._aceList) {
+      if (__curr == __idx) {
+        __fileName = __acl._fileName;
+        __procName = __ace._procName;
 
-  for (; __begAcl != __endAcl; ++__begAcl) {
-
-    auto __begAce = __begAcl->_aceList.begin();
-    auto __endAce = __begAcl->_aceList.end();
-    for (; __begAce != __endAce; ++__begAce) {
-      if (__curr == __idx) { break; }
+        return FSFLT_ERROR_SUCCESS;
+      }
       ++__curr;
     }
-
-    if (__begAce == __endAce) { return FSFLT_RULES_ERROR_LIST_INVALID_RANGE; }
-
-    __fileName = __begAcl->_fileName;
-    __procName = __begAce->_procName;
   }
 
-  if (__begAcl == __endAcl) { return FSFLT_RULES_ERROR_LIST_INVALID_RANGE; }
-
-  return FSFLT_ERROR_SUCCESS;
+  // Should never reach this point
+  return FSFLT_RULES_ERROR_LIST_INVALID_RANGE;
 }
 
 VOID

@@ -260,7 +260,6 @@ AddRule(
 VOID
 Controller::
 Load(PRESULT __res) {
-  DWORD __dwRes;
   std::wstring __rules;
   std::wstringstream __rulesBuf;
   std::wifstream __fdIn(CONF_FILEPATH);
@@ -471,6 +470,8 @@ _ConvertMask(std::wstring& __accessMaskStr, LPDWORD __accessMask) {
   if (__accessMaskStr.length() != 2) {
     return FSFLT_RULES_ERROR_INVALID_PERMISSIONS;
   }
+
+  *__accessMask = 0;
 
   // 0x72 = 'r'
   if (__accessMaskStr[0] == 0x72) {

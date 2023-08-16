@@ -40,8 +40,8 @@
   PRINT_STATUS("%s SUCCESS\n", FUNC);
 
 #define LOG_FILE_NAME L"\\SystemRoot\\MBKS\\ImageNotify.log"
+#define CONFIG_FILE_NAME L"rules.xml"
 #define CONSOLE_PROGRAM_NAME L"ConsoleApp.exe"
-#define MY_PROG_NAME RTL_CONSTANT_STRING(CONSOLE_PROGRAM_NAME);
 
 #define START_TAG 0x20202020UL
 #define LOAD_TAG 0x7f7f7f7fUL
@@ -52,6 +52,7 @@
 #define GLOBAL_DATA_FLAG_CDO_OPEN_HANDLE (1UL << 1)
 #define GLOBAL_DATA_FLAG_LOG_FILE_OPENED (1UL << 2)
 #define GLOBAL_DATA_FLAG_LOAD_IMAGE_SET (1UL << 3)
+#define GLOBAL_DATA_FLAG_ENABLE_FILTERING (1UL << 4)
 
 typedef struct _FILTER_GLOBAL_DATA {
   PFLT_FILTER _filter;
@@ -132,6 +133,13 @@ FSFltLoadImageNotify(
   _In_opt_ PUNICODE_STRING __fullImageName,
   _In_ HANDLE __processId,
   _In_ PIMAGE_INFO __imageInfo
+);
+
+FLT_PREOP_CALLBACK_STATUS
+FSFltPreOperation(
+  _Inout_ PFLT_CALLBACK_DATA __data,
+  _In_ PCFLT_RELATED_OBJECTS _fltObjects,
+  _Flt_CompletionContext_Outptr_ PVOID* _completionContext
 );
 
 #endif // !_DRIVER_H

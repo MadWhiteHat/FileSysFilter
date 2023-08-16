@@ -2,11 +2,21 @@
 	<entry>
 		<file>test.txt</file>
 		<process>cmd.exe</process>
+		<permissions>r-</permissions>
+	</entry>
+	<entry>
+		<file>new_file.txt</file>
+		<process>notepad.exe</process>
 		<permissions>rw</permissions>
 	</entry>
 	<entry>
 		<file>new_file.txt</file>
-		<process>test.exe</process>
-		<permissions>r-</permissions>
+		<process>cmd.exe</process>
+		<permissions>--</permissions>
+	</entry>
+	<entry>
+		<file>log.txt</file>
+		<process>notepad.exe</process>
+		<permissions>--</permissions>
 	</entry>
 </rules>

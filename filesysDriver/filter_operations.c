@@ -2,6 +2,14 @@
 
 #include <ntstrsafe.h>
 
+NTSTATUS
+_GetRelativeName(
+  _In_ LPCWSTR __fullName,
+  _In_ ULONG __fullNameBufferSize,
+  _Inout_ LPWSTR __relName,
+  _In_ ULONG __relNameBufferSize
+);
+
 #ifdef ALLOC_PRAGMA
 
 #pragma alloc_text(PAGE, FSFltCreateCDO)
@@ -13,6 +21,7 @@
 #pragma alloc_text(PAGE, FSFltSetLoadImageNotify)
 #pragma alloc_text(PAGE, FSFltRemoveLoadImageNotify)
 #pragma alloc_text(PAGE, FSFltLoadImageNotify)
+#pragma alloc_text(PAGE, _GetRelativeName)
 
 #endif // ALLOC_PRAGMA
 
@@ -322,7 +331,6 @@ FSFltSetLoadImageNotify(
 
   RtlInitUnicodeString(&__logFileName, LOG_FILE_NAME);
 
-
   InitializeObjectAttributes(
     &__objAttrs,
     &__logFileName,
@@ -474,4 +482,192 @@ FSFltLoadImageNotify(
   );
 
   PRINT_STATUS("Bytes: %llu / Message: %ws", __logStrLen, __logStr);
+}
+
+FLT_PREOP_CALLBACK_STATUS
+FSFltPreOperation(
+  _Inout_ PFLT_CALLBACK_DATA __data,
+  _In_ PCFLT_RELATED_OBJECTS __fltObjects,
+  _Flt_CompletionContext_Outptr_ PVOID* __completionContext
+) {
+  NTSTATUS __res;
+  HANDLE __pid;
+  PEPROCESS __peprocess;
+  PUNICODE_STRING __uProcName;
+  WCHAR __tmpName[TMP_BUFFER_SIZE] = { 0x00 };
+  WCHAR __procName[PROCESS_BUFFER_SIZE] = { 0x00 };
+  WCHAR __fileName[FILE_BUFFER_SIZE] = { 0x00};
+  ULONG __accessMask;
+  UCHAR __majorFunc;
+  ULONG __createDisposition;
+  ULONG __createOptions;
+  
+  UNREFERENCED_PARAMETER(__fltObjects);
+  UNREFERENCED_PARAMETER(__completionContext);
+
+  if (!FlagOn(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING)) {
+    return FLT_PREOP_SUCCESS_NO_CALLBACK;
+  }
+
+  if (__data->Iopb->TargetFileObject->FileName.Length == 0) {
+    return FLT_PREOP_SUCCESS_NO_CALLBACK;
+  }
+
+  __pid = PsGetCurrentProcessId();
+
+  __res = PsLookupProcessByProcessId(__pid, &__peprocess);
+  if (!NT_SUCCESS(__res)) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+  if (__peprocess == NULL) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+
+  __res = SeLocateProcessImageName(__peprocess, &__uProcName);
+  if (!NT_SUCCESS(__res)) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+
+  if (__uProcName->Length == 0) {
+    ExFreePool(__uProcName);
+    return FLT_PREOP_SUCCESS_NO_CALLBACK;
+  }
+
+  __res = RtlStringCchPrintfW(
+    __tmpName,
+    TMP_BUFFER_SIZE,
+    L"%wZ",
+    __uProcName
+  );
+
+  // No need to store anymore
+  ExFreePool(__uProcName);
+
+  if (!NT_SUCCESS(__res)) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+
+  __res = _GetRelativeName(
+    __tmpName,
+    TMP_BUFFER_SIZE,
+    __procName,
+    PROCESS_BUFFER_SIZE
+  );
+
+  if (!NT_SUCCESS(__res)) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+
+  __res = RtlStringCchPrintfW(
+    __tmpName,
+    TMP_BUFFER_SIZE,
+    L"%wZ",
+    __data->Iopb->TargetFileObject->FileName
+  );
+
+  if (!NT_SUCCESS(__res)) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+
+  __res = _GetRelativeName(
+    __tmpName,
+    TMP_BUFFER_SIZE,
+    __fileName,
+    FILE_BUFFER_SIZE
+  );
+
+  if (!NT_SUCCESS(__res)) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+
+  __res = GetRulePermissions(
+    &(_global._rulesList),
+    __fileName,
+    __procName,
+    &__accessMask
+  );
+
+  if (!NT_SUCCESS(__res)) { return FLT_PREOP_SUCCESS_NO_CALLBACK; }
+  
+  __majorFunc = __data->Iopb->MajorFunction;
+
+  if (__majorFunc == IRP_MJ_READ) {
+    if (__accessMask & MASK_ALLOW_READ) {
+      __data->IoStatus.Status = STATUS_SUCCESS;
+      return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    } else {
+      __data->IoStatus.Status = STATUS_ACCESS_DENIED;
+      return FLT_PREOP_COMPLETE;
+    }
+  } else if (__majorFunc == IRP_MJ_WRITE) {
+    if (__accessMask & MASK_ALLOW_WRITE) {
+      __data->IoStatus.Status = STATUS_SUCCESS;
+      return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    } else {
+      __data->IoStatus.Status = STATUS_ACCESS_DENIED;
+      return FLT_PREOP_COMPLETE;
+    }
+  } else if (__majorFunc == IRP_MJ_CREATE) {
+    __createOptions = __data->Iopb->Parameters.Create.Options & 0x00ffffff;
+    __createDisposition = __data->Iopb->Parameters.Create.Options >> 24;
+    // If FILE_COMPLETE_IF_OPLOCKED flag is set,
+    // the filter must not block or otherwise delay the IRP_MJ_CREATE operation
+    if (__createOptions & FILE_COMPLETE_IF_OPLOCKED) {
+      __data->IoStatus.Status = STATUS_SUCCESS;
+      return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    } else if (__createDisposition & FILE_OPEN
+      || __createDisposition & FILE_OPEN_IF) {
+      if (__accessMask & MASK_ALLOW_READ) {
+        __data->IoStatus.Status = STATUS_SUCCESS;
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+      } else {
+        __data->IoStatus.Status = STATUS_ACCESS_DENIED;
+        return FLT_PREOP_COMPLETE;
+      }
+    } else if (__createDisposition & FILE_SUPERSEDE
+      || __createDisposition & FILE_CREATE
+      || __createDisposition & FILE_OVERWRITE
+      || __createDisposition & FILE_OVERWRITE_IF
+      || __createDisposition & FILE_OPEN_IF) {
+      if (__accessMask & MASK_ALLOW_WRITE) {
+        __data->IoStatus.Status = STATUS_SUCCESS;
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+      } else {
+        __data->IoStatus.Status = STATUS_ACCESS_DENIED;
+        return FLT_PREOP_COMPLETE;
+      }
+    }
+  }
+  
+  return FLT_PREOP_SUCCESS_NO_CALLBACK;
+}
+
+NTSTATUS
+_GetRelativeName(
+  _In_ LPCWSTR __fullName,
+  _In_ ULONG __fullNameBufferSize,
+  _Inout_ LPWSTR __relName,
+  _In_ ULONG __relNameBufferSize
+) {
+  NTSTATUS __res;
+  size_t __fullNameLen = 0;
+  size_t __relNamePos = 0;
+  
+  PAGED_CODE();
+
+  __res = RtlStringCchLengthW(
+    __fullName,
+    __fullNameBufferSize,
+    &__fullNameLen
+  );
+
+  if (!NT_SUCCESS(__res)) { return __res; }
+
+  __relNamePos = __fullNameLen - 1;
+
+  // __fullName[0] is always '\'
+  while (__relNamePos > 0) {
+    if (__fullName[__relNamePos] == '\\') { break; }
+    --__relNamePos;
+  }
+
+  // Directory
+  if (__relNamePos == __fullNameLen - 1) { return STATUS_INVALID_PARAMETER; }
+
+  __res = RtlStringCchPrintfW(
+    __relName,
+    __relNameBufferSize,
+    L"%ws",
+    __fullName + __relNamePos + 1
+  );
+
+  if (!NT_SUCCESS(__res)) { return __res; }
+
+  return STATUS_SUCCESS;
 }
