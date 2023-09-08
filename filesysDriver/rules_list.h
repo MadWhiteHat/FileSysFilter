@@ -54,4 +54,12 @@ DelAllRules(
   _Out_ PLONG __result
 );
 
+NTSTATUS
+GetRulePermissions(
+  _In_ PRULES_LIST __head,
+  _In_ LPCWSTR __fileName,
+  _In_ LPCWSTR __procName,
+  _Inout_ PULONG __accessMask
+);
+
 #endif // !_MY_LIST_H

@@ -10,6 +10,48 @@
 
 #endif // ALLOC_PRAGMA
 
+CONST FLT_OPERATION_REGISTRATION _callbacks[] = {
+  {
+    IRP_MJ_CREATE,
+    0,
+    FSFltPreOperation,
+    NULL
+  },
+
+  {
+    IRP_MJ_READ,
+    0,
+    FSFltPreOperation,
+    NULL
+  },
+
+  {
+    IRP_MJ_WRITE,
+    0,
+    FSFltPreOperation,
+    NULL
+  },
+
+ { IRP_MJ_OPERATION_END }
+};
+
+CONST FLT_REGISTRATION _registration = {
+  sizeof(FLT_REGISTRATION),               // Size
+  FLT_REGISTRATION_VERSION,               // Version
+  0,                                      // Flags
+  NULL,                                   // Context
+  _callbacks,                             // Operation callbacks
+  FSFltUnload,                            // Filter unload callback
+  NULL,                                   // Instance setup callback
+  FSFltInstanceQueryTeardown,             // Instance query teardown callback
+  NULL,                                   // Instance teardown start callback
+  NULL,                                   // Instance teardown complete callback
+  NULL,                                   // Generate filename callback
+  NULL,                                   // Normalize name component callback
+  NULL,                                   // Normalize context cleanup callback
+  NULL                                    // Transaction notification callback
+};
+
 FILTER_GLOBAL_DATA _global;
 
 NTSTATUS
@@ -18,23 +60,6 @@ DriverEntry(
   _In_ PUNICODE_STRING __registryPath) {
 
   NTSTATUS __res = STATUS_SUCCESS;
-
-  CONST FLT_REGISTRATION __filterRegistration = {
-    sizeof(FLT_REGISTRATION),               // Size
-    FLT_REGISTRATION_VERSION,               // Version
-    0,                                      // Flags
-    NULL,                                   // Context
-    NULL,                                   // Operation callbacks
-    FSFltUnload,                            // Filter unload callback
-    NULL,                                   // Instance setup callback
-    FSFltInstanceQueryTeardown,             // Instance query teardown callback
-    NULL,                                   // Instance teardown start callback
-    NULL,                                   // Instance teardown complete callback
-    NULL,                                   // Generate filename callback
-    NULL,                                   // Normalize name component callback
-    NULL,                                   // Normalize context cleanup callback
-    NULL                                    // Transaction notification callback
-  };
 
   PRINT_STATUS("DriverEntry starting...\n");
 
@@ -47,7 +72,7 @@ DriverEntry(
   
   __res = FltRegisterFilter(
     __driverObj,
-    &__filterRegistration,
+    &_registration,
     &_global._filter
   );
 
@@ -63,16 +88,17 @@ DriverEntry(
     return __res;
   } else { PRINT_SUCCESS("FSFltCreateCDO"); }
 
-  __res = FltStartFiltering(
-    _global._filter
-  );
+  SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
 
+  __res = FltStartFiltering(_global._filter);
   if (!NT_SUCCESS(__res)) {
     PRINT_ERROR("FltStartFiltering", __res);
+    ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
     FSFltDeleteCDO();
     FltUnregisterFilter(_global._filter);
     return __res;
   } else { PRINT_SUCCESS("FltStartFiltering"); }
+
 
   PRINT_SUCCESS("DriverEntry");
   return __res;

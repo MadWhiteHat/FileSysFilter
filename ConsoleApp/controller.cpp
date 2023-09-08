@@ -422,7 +422,7 @@ Controller::_Usage(VOID) {
   std::cout << OUTPUT_LEVEL << "Valid parameters for execution:" << std::endl;
   std::cout << OUTPUT_LEVEL << "print - display current permissions\n";
   std::cout << OUTPUT_LEVEL << "del {NUMBER} - delete a rule with a number N\n";
-  std::cout << OUTPUT_LEVEL << "add {PROCESS_NAME} {FILENAME} {PERMISSIONS} - add a new rule\n";
+  std::cout << OUTPUT_LEVEL << "add {FILE_NAME} {PROCESS_NAME} {PERMISSIONS} - add a new rule\n";
   std::cout << OUTPUT_LEVEL << "load - load rules from config file\n";
   std::cout << OUTPUT_LEVEL << "save - save current rules to config file\n";
   std::cout << OUTPUT_LEVEL << "install - install FileSysDriver\n";

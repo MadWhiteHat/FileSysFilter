@@ -417,7 +417,8 @@ VOID
 FSFltLoadImageNotify(
   PUNICODE_STRING __fullImageName,
   HANDLE __processId,
-  PIMAGE_INFO __imageInfo) {
+  PIMAGE_INFO __imageInfo
+) {
 
   static_assert(
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH < NTSTRSAFE_MAX_CCH,
@@ -444,7 +445,7 @@ FSFltLoadImageNotify(
     __logStr,
     DRIVER_LOAD_IMAGE_BUFFER_LENGTH,
     L"[%02hd\\%02hd\\%4hd %02hd:%02hd:%02hd] Proces ID: %d "
-    L"Image Name: %wZ Image Base Addr: %p Image Size: %ld bytes\n",
+    L"Image Name: %wZ Image Base Addr: %p Image Size: %llu bytes\n",
     __timeFields.Day, __timeFields.Month, __timeFields.Year,
     __timeFields.Hour, __timeFields.Minute, __timeFields.Second,
     __processId, __fullImageName,
@@ -497,7 +498,7 @@ FSFltPreOperation(
   WCHAR __tmpName[TMP_BUFFER_SIZE] = { 0x00 };
   WCHAR __procName[PROCESS_BUFFER_SIZE] = { 0x00 };
   WCHAR __fileName[FILE_BUFFER_SIZE] = { 0x00};
-  ULONG __accessMask;
+  ULONG __accessMask = 0;
   UCHAR __majorFunc;
   ULONG __createDisposition;
   ULONG __createOptions;

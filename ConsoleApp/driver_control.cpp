@@ -446,7 +446,7 @@ _GetFullPath(
     return;
   }
 
-  __tmpPath = new(std::nothrow) WCHAR[__length + 1];
+  __tmpPath = new(std::nothrow) WCHAR[size_t(__length) + 1];
 
   if (__tmpPath == nullptr) {
     InitResult(

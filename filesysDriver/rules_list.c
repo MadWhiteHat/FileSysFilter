@@ -67,6 +67,12 @@ _CompareStrings(
 
 #ifdef ALLOC_PRAGMA
 
+#pragma alloc_text(PAGE, PrintRules)
+#pragma alloc_text(PAGE, AddRule)
+#pragma alloc_text(PAGE, DelRule)
+#pragma alloc_text(PAGE, DelAllRules)
+#pragma alloc_text(PAGE, GetRulePermissions)
+
 #pragma alloc_text(PAGE, PrintAceList)
 #pragma alloc_text(PAGE, FindAce)
 #pragma alloc_text(PAGE, AddAce)
@@ -77,14 +83,232 @@ _CompareStrings(
 #pragma alloc_text(PAGE, AddAcl)
 #pragma alloc_text(PAGE, DelAcl)
 #pragma alloc_text(PAGE, DelAllAcls)
-#pragma alloc_text(PAGE, PrintRules)
-#pragma alloc_text(PAGE, AddRule)
-#pragma alloc_text(PAGE, DelRule)
-#pragma alloc_text(PAGE, DelAllRules)
 #pragma alloc_text(PAGE, _CompareStrings)
 
 #endif // ALLOC_PRAGMA
 
+VOID
+PrintRules(_In_ RULES_LIST __head) {
+
+  PAGED_CODE();
+
+  PRINT_STATUS(
+    "\n"
+    "Current allocation tag: 0x%08x\n"
+    "Rules list ptr: %p\n"
+    "Rules count: %lu\n"
+    "Rules:\n",
+    __head._curTag, __head._aclList, __head._aclCnt
+  );
+
+  PrintAclList(__head._aclList);
+}
+
+NTSTATUS
+AddRule(
+  _Inout_ PRULES_LIST __head,
+  _In_ LPCWSTR __fileName,
+  _In_ LPCWSTR __procName,
+  _In_ ULONG __accessMask,
+  _Out_ PLONG __result
+) {
+  NTSTATUS __res;
+  PRULES_ACL __acl;
+  PRULES_ACE __ace;
+
+  PAGED_CODE();
+
+  if (__head == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_LIST_PTR;
+    return STATUS_INVALID_PARAMETER_1;
+  }
+  if (__fileName == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_FILE_NAME;
+    return STATUS_INVALID_PARAMETER_2;
+  }
+
+  if (__procName == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_PROCESS_NAME;
+    return STATUS_INVALID_PARAMETER_3;
+  }
+
+  if (__accessMask & ~MASK_ALLOW_ALL) {
+    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_ACCESS_MASK;
+    return STATUS_INVALID_PARAMETER_4;
+  }
+
+  __acl = FindAcl(__head->_aclList, __fileName);
+  // Acl with this fileName doesn't exist
+
+  if (__acl == NULL) {
+    __res = AddAcl(&(__head->_aclList), __fileName, __result);
+
+    if (!NT_SUCCESS(__res)) { return __res; }
+
+    ++(__head->_aclCnt);
+
+    __acl = FindAcl(__head->_aclList, __fileName);
+
+    if (__acl == NULL) {
+      *__result = FSFLT_DRIVER_ERROR_ADD_RULE_FIND_ACL;
+      return STATUS_INVALID_PARAMETER_2;
+    }
+  }
+
+  __ace = FindAce(__acl->_aceList, __procName);
+  // Ace with this process name already exists
+  if (__ace != NULL) {
+    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_ACE_ALREADY_EXISTS;
+    return STATUS_INVALID_PARAMETER_3;
+  }
+  // Otherwise add ace to list
+  __res = AddAce(&(__acl->_aceList), __procName, __accessMask, __result);
+
+  if (!NT_SUCCESS(__res)) { return __res; }
+
+  ++(__acl->_aceCnt);
+
+  *__result = FSFLT_ERROR_SUCCESS;
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS
+DelRule(
+  _Inout_ PRULES_LIST __head,
+  _In_ LPCWSTR __fileName,
+  _In_ LPCWSTR __procName,
+  _Out_ PLONG __result
+) {
+  NTSTATUS __res;
+  PRULES_ACL __acl;
+  PRULES_ACE __ace;
+
+  PAGED_CODE();
+
+  if (__head == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_INVALID_LIST_PTR;
+    return STATUS_INVALID_PARAMETER_1;
+  }
+  if (__fileName == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_INVALID_FILE_NAME;
+    return STATUS_INVALID_PARAMETER_2;
+  }
+
+  if (__procName == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_INVALID_PROCESS_NAME;
+    return STATUS_INVALID_PARAMETER_3;
+  }
+
+  __acl = FindAcl(__head->_aclList, __fileName);
+  if (__acl == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_FIND_ACL;
+    return STATUS_INVALID_PARAMETER_2;
+  }
+
+  __ace = FindAce(__acl->_aceList, __procName);
+  if (__ace == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_FIND_ACE;
+    return STATUS_INVALID_PARAMETER_3;
+  }
+
+  __res = DelAce(&(__acl->_aceList), __ace, __result);
+  if (!NT_SUCCESS(__res)) { return __res; }
+
+  --(__acl->_aceCnt);
+
+  if (__acl->_aceCnt == 0) {
+    __res = DelAcl(&(__head->_aclList), __acl, __result);
+    if (!NT_SUCCESS(__res)) { return __res; }
+    
+    --(_global._rulesList._aclCnt);
+  }
+
+  *__result = FSFLT_ERROR_SUCCESS;
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS
+DelAllRules(
+  _Inout_ PRULES_LIST __head,
+  _Out_ PLONG __result
+) {
+  NTSTATUS __res;
+
+  PAGED_CODE();
+
+  if (__head == NULL) {
+    *__result = FSFLT_DRIVER_ERROR_DEL_ALL_RULES_INVALID_LIST_PTR;
+    return STATUS_INVALID_PARAMETER_1;
+  }
+
+   __res = DelAllAcls(&(__head->_aclList), __result);
+   if (!NT_SUCCESS(__res)) { return __res; }
+
+  __head->_aclCnt = 0;
+  __head->_curTag = START_TAG;
+
+  *__result = FSFLT_ERROR_SUCCESS;
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS
+GetRulePermissions(
+  _In_ PRULES_LIST __head,
+  _In_ LPCWSTR __fileName,
+  _In_ LPCWSTR __procName,
+  _Inout_ PULONG __accessMask
+) {
+  BOOL __bRes;
+  UNICODE_STRING __confFileName;
+  UNICODE_STRING __consoleAppName;
+  PRULES_ACL __acl;
+  PRULES_ACE __ace;
+
+  PAGED_CODE();
+
+  if (__head == NULL) {
+    *__accessMask = MASK_ALLOW_ALL;
+    return STATUS_INVALID_PARAMETER_1;
+  }
+  if (__fileName == NULL) {
+    *__accessMask = MASK_ALLOW_ALL;
+    return STATUS_INVALID_PARAMETER_2;
+  }
+
+  if (__procName == NULL) {
+    *__accessMask = MASK_ALLOW_ALL;
+    return STATUS_INVALID_PARAMETER_3;
+  }
+
+  RtlInitUnicodeString(&__confFileName, CONFIG_FILE_NAME);
+  RtlInitUnicodeString(&__consoleAppName, CONSOLE_PROGRAM_NAME);
+
+
+  __bRes = _CompareStrings(__fileName, &__confFileName);
+  if (__bRes == TRUE) {
+    __bRes = _CompareStrings(__procName, &__consoleAppName);
+    *__accessMask = (__bRes == TRUE) ? MASK_ALLOW_ALL : 0;
+
+    return STATUS_SUCCESS;
+  }
+
+
+  __acl = FindAcl(__head->_aclList, __fileName);
+  if (__acl == NULL) {
+    *__accessMask = MASK_ALLOW_ALL;
+    return STATUS_INVALID_PARAMETER_2;
+  }
+
+  __ace = FindAce(__acl->_aceList, __procName);
+  if (__ace == NULL) {
+    *__accessMask = MASK_ALLOW_ALL;
+    return STATUS_INVALID_PARAMETER_3;
+  }
+
+  *__accessMask = __ace->_accessMask;
+
+  return STATUS_SUCCESS;
+}
 
 VOID
 PrintAceList(_In_ PRULES_ACE __head) {
@@ -177,6 +401,8 @@ AddAce(
   __newNode->_allocTag = __allocTag;
   __newNode->_nextAce = NULL;
 
+  ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
+
   if (*__head == NULL) { *__head = __newNode; }
   else {
     __tmpNode = *__head;
@@ -185,6 +411,8 @@ AddAce(
   }
 
   ++(_global._rulesList._curTag);
+
+  SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
 
   *__result = FSFLT_ERROR_SUCCESS;
   return STATUS_SUCCESS;
@@ -201,6 +429,8 @@ DelAce(
 
   PAGED_CODE();
 
+  ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
+
   if (*__head == __node) {
     __tmpNode = *__head;
     *__head = (*__head)->_nextAce;
@@ -211,6 +441,7 @@ DelAce(
     
     while (__tmpNode->_nextAce != __node) {
       if (__tmpNode->_nextAce == NULL) {
+        SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
         *__result = FSFLT_DRIVER_ERROR_DEL_ACE_INVALID_LIST;
         return STATUS_INVALID_PARAMETER_2;
       }
@@ -231,6 +462,8 @@ DelAce(
     // Free next node
     ExFreePoolWithTag(__tmpNode, __tmpNode->_allocTag);
   }
+
+  SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
 
   *__result = FSFLT_ERROR_SUCCESS;
   return STATUS_SUCCESS;
@@ -353,6 +586,8 @@ AddAcl(
   __newNode->_allocTag = __allocTag;
   __newNode->_nextAcl = NULL;
 
+  ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
+
   if (*__head == NULL) { *__head = __newNode; }
   else {
     __tmpNode = *__head;
@@ -361,6 +596,8 @@ AddAcl(
   }
 
   ++(_global._rulesList._curTag);
+
+  SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
 
   *__result = FSFLT_ERROR_SUCCESS;
   return STATUS_SUCCESS;
@@ -387,6 +624,8 @@ DelAcl(
     return STATUS_INVALID_PARAMETER_2;
   }
 
+  ClearFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
+
   if (*__head == __node) {
     __tmpNode = *__head;
     *__head = (*__head)->_nextAcl;
@@ -397,6 +636,7 @@ DelAcl(
 
     while (__tmpNode->_nextAcl != __node) {
       if (__tmpNode->_nextAcl == NULL) {
+        SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
         *__result = FSFLT_DRIVER_ERROR_DEL_ACL_INVALID_LIST;
         return STATUS_INVALID_PARAMETER_2;
       }
@@ -418,6 +658,8 @@ DelAcl(
     // Free next node
     ExFreePoolWithTag(__tmpNode, __tmpNode->_allocTag);
   }
+
+  SetFlag(_global._filterFlags, GLOBAL_DATA_FLAG_ENABLE_FILTERING);
 
   *__result = FSFLT_ERROR_SUCCESS;
   return STATUS_SUCCESS;
@@ -444,175 +686,6 @@ DelAllAcls(
   *__result = FSFLT_ERROR_SUCCESS;
   return STATUS_SUCCESS;
 }
-
-VOID
-PrintRules(_In_ RULES_LIST __head) {
-
-  PAGED_CODE();
-
-  PRINT_STATUS(
-    "\n"
-    "Current allocation tag: 0x%08x\n"
-    "Rules list ptr: %p\n"
-    "Rules count: %lu\n"
-    "Rules:\n",
-    __head._curTag, __head._aclList, __head._aclCnt
-  );
-
-  PrintAclList(__head._aclList);
-}
-
-NTSTATUS
-AddRule(
-  _Inout_ PRULES_LIST __head,
-  _In_ LPCWSTR __fileName,
-  _In_ LPCWSTR __procName,
-  _In_ ULONG __accessMask,
-  _Out_ PLONG __result
-) {
-  NTSTATUS __res;
-  PRULES_ACL __acl;
-  PRULES_ACE __ace;
-
-  PAGED_CODE();
-
-  if (__head == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_LIST_PTR;
-    return STATUS_INVALID_PARAMETER_1;
-  }
-  if (__fileName == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_FILE_NAME;
-    return STATUS_INVALID_PARAMETER_2;
-  }
-
-  if (__procName == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_PROCESS_NAME;
-    return STATUS_INVALID_PARAMETER_3;
-  }
-
-  if (__accessMask & ~MASK_ALLOW_ALL) {
-    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_INVALID_ACCESS_MASK;
-    return STATUS_INVALID_PARAMETER_4;
-  }
-
-  __acl = FindAcl(__head->_aclList, __fileName);
-  // Acl with this fileName doesn't exist
-
-  if (__acl == NULL) {
-    __res = AddAcl(&(__head->_aclList), __fileName, __result);
-
-    if (!NT_SUCCESS(__res)) { return __res; }
-
-    ++(__head->_aclCnt);
-
-    __acl = FindAcl(__head->_aclList, __fileName);
-
-    if (__acl == NULL) {
-      *__result = FSFLT_DRIVER_ERROR_ADD_RULE_FIND_ACL;
-      return STATUS_INVALID_PARAMETER_2;
-    }
-  }
-
-  __ace = FindAce(__acl->_aceList, __procName);
-  // Ace with this process name already exists
-  if (__ace != NULL) {
-    *__result = FSFLT_DRIVER_ERROR_ADD_RULE_ACE_ALREADY_EXISTS;
-    return STATUS_INVALID_PARAMETER_3;
-  }
-  // Otherwise add ace to list
-  __res = AddAce(&(__acl->_aceList), __procName, __accessMask, __result);
-
-  if (!NT_SUCCESS(__res)) { return __res; }
-
-  ++(__acl->_aceCnt);
-
-  *__result = FSFLT_ERROR_SUCCESS;
-  return STATUS_SUCCESS;
-}
-
-NTSTATUS
-DelRule(
-  _Inout_ PRULES_LIST __head,
-  _In_ LPCWSTR __fileName,
-  _In_ LPCWSTR __procName,
-  _Out_ PLONG __result
-) {
-  NTSTATUS __res;
-  PRULES_ACL __acl;
-  PRULES_ACE __ace;
-
-  UNREFERENCED_PARAMETER(__res);
-  UNREFERENCED_PARAMETER(__acl);
-  UNREFERENCED_PARAMETER(__ace);
-
-  PAGED_CODE();
-
-  if (__head == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_INVALID_LIST_PTR;
-    return STATUS_INVALID_PARAMETER_1;
-  }
-  if (__fileName == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_INVALID_FILE_NAME;
-    return STATUS_INVALID_PARAMETER_2;
-  }
-
-  if (__procName == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_INVALID_PROCESS_NAME;
-    return STATUS_INVALID_PARAMETER_3;
-  }
-
-  __acl = FindAcl(__head->_aclList, __fileName);
-  if (__acl == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_FIND_ACL;
-    return STATUS_INVALID_PARAMETER_2;
-  }
-
-  __ace = FindAce(__acl->_aceList, __procName);
-  if (__ace == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_DEL_RULE_FIND_ACE;
-    return STATUS_INVALID_PARAMETER_3;
-  }
-
-  __res = DelAce(&(__acl->_aceList), __ace, __result);
-  if (!NT_SUCCESS(__res)) { return __res; }
-
-  --(__acl->_aceCnt);
-
-  if (__acl->_aceCnt == 0) {
-    __res = DelAcl(&(__head->_aclList), __acl, __result);
-    if (!NT_SUCCESS(__res)) { return __res; }
-    
-    --(_global._rulesList._aclCnt);
-  }
-
-  *__result = FSFLT_ERROR_SUCCESS;
-  return STATUS_SUCCESS;
-}
-
-NTSTATUS
-DelAllRules(
-  _Inout_ PRULES_LIST __head,
-  _Out_ PLONG __result
-) {
-  NTSTATUS __res;
-
-  PAGED_CODE();
-
-  if (__head == NULL) {
-    *__result = FSFLT_DRIVER_ERROR_DEL_ALL_RULES_INVALID_LIST_PTR;
-    return STATUS_INVALID_PARAMETER_1;
-  }
-
-   __res = DelAllAcls(&(__head->_aclList), __result);
-   if (!NT_SUCCESS(__res)) { return __res; }
-
-  __head->_aclCnt = 0;
-  __head->_curTag = START_TAG;
-
-  *__result = FSFLT_ERROR_SUCCESS;
-  return STATUS_SUCCESS;
-}
-
 
 BOOLEAN
 _CompareStrings(
