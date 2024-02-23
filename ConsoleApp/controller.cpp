@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <exception>
+#include <vector>
 #include <cstdarg>
 #include <windows.h>
 
@@ -260,7 +261,7 @@ AddRule(
 VOID
 Controller::
 Load(PRESULT __res) {
-  std::wstring __rules;
+  std::vector<std::wstring> __rules;
   std::wstringstream __rulesBuf;
   std::wifstream __fdIn(CONF_FILEPATH);
   
@@ -275,21 +276,29 @@ Load(PRESULT __res) {
     return;
   }
 
-  __rulesBuf << __fdIn.rdbuf();
-  __rules = std::move(__rulesBuf.str());
+  {
+    std::wstring __tmpLine;
+    while(std::getline(__fdIn, __tmpLine)) {
 
-  if (!__fdIn.good() && !__fdIn.eof()) {
-    __fdIn.close();
-    InitResult(
-      __res,
-      L"wifstream::rdbuf",
-      ERROR_SUCCESS,
-      FSFLT_CONTROLLER_ERROR_READ_RULES
-    );
+      if (!__fdIn.good() && !__fdIn.eof()) {
+        __fdIn.close();
+        InitResult(
+          __res,
+          L"wifstream::getline",
+          ERROR_SUCCESS,
+          FSFLT_CONTROLLER_ERROR_READ_RULES
+        );
 
-    return;
+        __fdIn.close();
+        return;
+      }
+
+      __rules.push_back(std::move(__tmpLine));
+    }
   }
+
   __fdIn.close();
+
 
   _drv.ClearRules(__res);
   if (!FSFLT_SUCCESS(__res->_internalErrCode)) { return; }
@@ -300,25 +309,10 @@ Load(PRESULT __res) {
     std::wstring __fileName;
     std::wstring __procName;
     std::wstring __accessMaskStr(2, 0);
-    std::wstring __entryDummy(
-      L"<entry>"
-        L"<file></file>"
-        L"<process></process>"
-        L"<permissions></permissions>"
-      L"</entry>"
-    );
-    std::wstring __fileStart(L"<file>");
-    std::wstring __fileEnd(L"</file>");
-    std::wstring __procStart(L"<process>");
-    std::wstring __procEnd(L"</process>");
-    std::wstring __accessMaskStart(L"<permissions>");
-    std::wstring __accessMaskEnd(L"</permissions>");
-    size_t __shift = 0;
-    DWORD __accssMask;
+    std::wstring::size_type __shift = 0;
 
-    while (__rules.length() > __entryDummy.length()) {
-      __shift = __rules.find(__fileStart);
-
+    for (auto& __rule : __rules) {
+      __shift = __rule.find(';');
       if (__shift == std::wstring::npos) {
         InitResult(
           __res,
@@ -326,13 +320,14 @@ Load(PRESULT __res) {
           ERROR_SUCCESS,
           FSFLT_CONTROLLER_ERROR_PARSE_RULES
         );
-        return ;
+
+        return;
       }
 
-      __shift += __fileStart.length();
-      __rules.erase(0, __shift);
-      __shift = __rules.find(__fileEnd);
+      __fileName.assign(__rule, 0, __shift);
+      __rule.erase(0, __shift + 1);
 
+      __shift = __rule.find(';');
       if (__shift == std::wstring::npos) {
         InitResult(
           __res,
@@ -340,71 +335,18 @@ Load(PRESULT __res) {
           ERROR_SUCCESS,
           FSFLT_CONTROLLER_ERROR_PARSE_RULES
         );
-        return ;
+
+        return;
       }
+      
+      __procName.assign(__rule, 0, __shift);
+      __rule.erase(0, __shift + 1);
 
-      __fileName.assign(__rules, 0, __shift);
-
-      __shift = __rules.find(__procStart);
-
-      if (__shift == std::wstring::npos) {
-        InitResult(
-          __res,
-          L"wstring::find",
-          ERROR_SUCCESS,
-          FSFLT_CONTROLLER_ERROR_PARSE_RULES
-        );
-        return ;
-      }
-
-      __shift += __procStart.length();
-      __rules.erase(0, __shift);
-      __shift = __rules.find(__procEnd);
-
-      if (__shift == std::wstring::npos) {
-        InitResult(
-          __res,
-          L"wstring::find",
-          ERROR_SUCCESS,
-          FSFLT_CONTROLLER_ERROR_PARSE_RULES
-        );
-        return ;
-      }
-
-      __procName.assign(__rules, 0, __shift);
-
-      __shift = __rules.find(__accessMaskStart);
-
-      if (__shift == std::wstring::npos) {
-        InitResult(
-          __res,
-          L"wstring::find",
-          ERROR_SUCCESS,
-          FSFLT_CONTROLLER_ERROR_PARSE_RULES
-        );
-        return ;
-      }
-
-      __shift += __accessMaskStart.length();
-      __rules.assign(__rules.data() + __shift);
-      __shift = __rules.find(__accessMaskEnd);
-
-      if (__shift == std::wstring::npos) {
-        InitResult(
-          __res,
-          L"wstring::find",
-          ERROR_SUCCESS,
-          FSFLT_CONTROLLER_ERROR_PARSE_RULES
-        );
-        return ;
-      }
-
-      __accessMaskStr.assign(__rules, 0, __shift);
+      __accessMaskStr.assign(__rule, 0, 2);
 
       AddRule(__fileName, __procName, __accessMaskStr, __res);
-
       if (!FSFLT_SUCCESS(__res->_internalErrCode)) { return; }
-    } 
+    }
   }
 
   InitResult(
